@@ -11,11 +11,24 @@ import { CustomerManagement } from './components/customers/CustomerManagement';
 import { SupplierManagement } from './components/suppliers/SupplierManagement';
 import { ReportsView } from './components/reports/ReportsView';
 import { AuditLogsView } from './components/audit/AuditLogsView';
+import { SettingsView } from './components/settings/SettingsView';
+import { UserPortal } from './components/portal/UserPortal';
 import { RegisterShiftModal } from './components/shift/RegisterShiftModal';
 
 function MainApp() {
-  const { activeTab } = useApp();
+  const { activeTab, currentUser } = useApp();
   const [isShiftModalOpen, setIsShiftModalOpen] = useState<boolean>(false);
+
+  // If active user is purely a customer user, show User Portal directly
+  const isPureCustomer = currentUser.role === 'user';
+
+  if (isPureCustomer && activeTab !== 'settings') {
+    return (
+      <div className="min-h-screen bg-stone-50 flex flex-col text-stone-900 font-sans selection:bg-amber-200">
+        <UserPortal />
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-stone-100 flex flex-col text-stone-900 font-sans selection:bg-amber-200">
@@ -36,6 +49,8 @@ function MainApp() {
         {activeTab === 'suppliers' && <SupplierManagement />}
         {activeTab === 'reports' && <ReportsView />}
         {activeTab === 'audit' && <AuditLogsView />}
+        {activeTab === 'settings' && <SettingsView />}
+        {activeTab === 'portal' && <UserPortal />}
       </main>
 
       {/* Quiet Footer */}

@@ -13,7 +13,9 @@ import {
   Clock, 
   RotateCcw, 
   Download,
-  Database
+  Database,
+  Settings,
+  Store
 } from 'lucide-react';
 
 export const WorkspaceSubnav: React.FC<{ onOpenShiftModal: () => void }> = ({ onOpenShiftModal }) => {
@@ -26,7 +28,9 @@ export const WorkspaceSubnav: React.FC<{ onOpenShiftModal: () => void }> = ({ on
     isFirestoreSyncing,
     firebaseUser,
     loginGoogle,
-    logoutGoogle
+    logoutGoogle,
+    currentUser,
+    pendingUsersCount
   } = useApp();
 
   const tabs = [
@@ -39,6 +43,8 @@ export const WorkspaceSubnav: React.FC<{ onOpenShiftModal: () => void }> = ({ on
     { id: 'suppliers', label: 'Suppliers', icon: Truck },
     { id: 'reports', label: 'Financial Reports', icon: BarChart3 },
     { id: 'audit', label: 'Audit Logs', icon: History },
+    { id: 'settings', label: 'Setting', icon: Settings, badge: pendingUsersCount, adminOnly: true },
+    { id: 'portal', label: 'User Portal', icon: Store },
   ];
 
   return (
@@ -47,13 +53,16 @@ export const WorkspaceSubnav: React.FC<{ onOpenShiftModal: () => void }> = ({ on
         {/* Subnav links */}
         <div className="flex items-center gap-1.5 shrink-0 overflow-x-auto py-0.5">
           {tabs.map((tab) => {
+            if (tab.adminOnly && currentUser.role !== 'admin' && currentUser.role !== 'manager') {
+              return null;
+            }
             const Icon = tab.icon;
             const isActive = activeTab === tab.id;
             return (
               <button
                 key={tab.id}
                 onClick={() => setActiveTab(tab.id)}
-                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md font-medium transition-colors whitespace-nowrap shrink-0 ${
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md font-medium transition-colors whitespace-nowrap shrink-0 relative ${
                   isActive
                     ? 'bg-stone-900 text-amber-300 shadow-xs'
                     : 'text-stone-600 hover:text-stone-900 hover:bg-stone-200'
@@ -61,6 +70,11 @@ export const WorkspaceSubnav: React.FC<{ onOpenShiftModal: () => void }> = ({ on
               >
                 <Icon className="w-3.5 h-3.5" />
                 <span>{tab.label}</span>
+                {tab.badge && tab.badge > 0 ? (
+                  <span className="ml-0.5 px-1.5 py-0.2 rounded-full text-[10px] font-bold bg-amber-500 text-stone-950 animate-pulse">
+                    {tab.badge}
+                  </span>
+                ) : null}
               </button>
             );
           })}

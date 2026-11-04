@@ -1,9 +1,9 @@
 import { PerfumeProduct, Customer, Supplier, SaleTransaction, Expense, AuditLog, RegisterShift, AppUser } from '../types';
 
 export const initialUsers: AppUser[] = [
-  { id: 'usr-1', name: 'Althea Ramos (Owner)', role: 'admin', email: 'hueloperfums@gmail.com' },
-  { id: 'usr-2', name: 'Marcus Tan', role: 'manager', email: 'manager@hueloperfumes.ph' },
-  { id: 'usr-3', name: 'Camille Cruz', role: 'cashier', email: 'cashier@hueloperfumes.ph' },
+  { id: 'usr-1', name: 'Althea Ramos (Owner)', role: 'admin', email: 'hueloperfums@gmail.com', status: 'active', createdAt: '2026-01-01T00:00:00Z' },
+  { id: 'usr-2', name: 'Marcus Tan', role: 'manager', email: 'manager@hueloperfumes.ph', status: 'active', createdAt: '2026-01-01T00:00:00Z' },
+  { id: 'usr-3', name: 'Camille Cruz', role: 'cashier', email: 'cashier@hueloperfumes.ph', status: 'active', createdAt: '2026-01-01T00:00:00Z' },
 ];
 
 export const initialProducts: PerfumeProduct[] = [

@@ -66,5 +66,26 @@ service cloud.firestore {
       allow list: if true;
       allow create, update, delete: if isValidId(shiftId);
     }
+
+    // Users: Profiles, role assignments, and approval statuses
+    match /users/{userId} {
+      allow get: if isValidId(userId);
+      allow list: if true;
+      allow create, update, delete: if isValidId(userId);
+    }
+
+    // Orders: Online customer orders from the User Portal
+    match /orders/{orderId} {
+      allow get: if isValidId(orderId);
+      allow list: if true;
+      allow create, update, delete: if isValidId(orderId);
+    }
+
+    // Settings: Store configuration (delivery fees, GCash details, etc.)
+    match /settings/{settingId} {
+      allow get: if isValidId(settingId);
+      allow list: if true;
+      allow create, update, delete: if isValidId(settingId);
+    }
   }
 }

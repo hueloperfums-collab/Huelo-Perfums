@@ -10,9 +10,15 @@ import {
   AuditLog, 
   RegisterShift, 
   AppUser, 
+  UserRole,
+  UserStatus,
   StockAdjustment, 
   PurchaseOrder,
-  PaymentMethod 
+  PaymentMethod,
+  OnlineOrder,
+  OrderStatus,
+  OnlineOrderItem,
+  StoreSettings 
 } from '../types';
 import { 
   initialProducts, 
@@ -61,6 +67,20 @@ interface AppContextType {
   loginGoogle: () => Promise<void>;
   logoutGoogle: () => Promise<void>;
   isFirestoreSyncing: boolean;
+  updateUserRole: (userId: string, newRole: UserRole) => Promise<void>;
+  updateUserStatus: (userId: string, newStatus: UserStatus) => Promise<void>;
+  updateUserName: (userId: string, newName: string) => Promise<void>;
+  deleteUser: (userId: string) => Promise<void>;
+  pendingUsersCount: number;
+
+  // Store & Delivery Configuration
+  storeSettings: StoreSettings;
+  updateStoreSettings: (newSettings: Partial<StoreSettings>) => Promise<void>;
+
+  // Online Orders & User Portal
+  orders: OnlineOrder[];
+  placeOnlineOrder: (order: Omit<OnlineOrder, 'id' | 'orderNumber' | 'createdAt' | 'status'>) => Promise<OnlineOrder>;
+  updateOrderStatus: (orderId: string, status: OrderStatus) => Promise<void>;
 
   // Products & Stock
   products: PerfumeProduct[];
@@ -115,35 +135,107 @@ interface AppContextType {
   resetToDefaults: () => Promise<void>;
 }
 
+const defaultStoreSettings: StoreSettings = {
+  standardDeliveryFee: 100,
+  freeDeliveryThreshold: 1500,
+  gcashAccountName: 'HUELO PERFUMES OFFICIAL',
+  gcashNumber: '0917-888-4835'
+};
+
 const AppContext = createContext<AppContextType | undefined>(undefined);
 
 export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [activeTab, setActiveTab] = useState<string>('pos');
-  const [users] = useState<AppUser[]>(initialUsers);
-  const [currentUserId, setCurrentUserId] = useState<string>('usr-3'); // Default Camille Cruz (Cashier)
+  const [users, setUsers] = useState<AppUser[]>(initialUsers);
+  const [currentUserId, setCurrentUserId] = useState<string>('usr-1'); // Default Althea Ramos (Super Admin / hueloperfums@gmail.com)
+  const [orders, setOrders] = useState<OnlineOrder[]>([]);
+  const [storeSettings, setStoreSettings] = useState<StoreSettings>(defaultStoreSettings);
   const [isFirestoreSyncing, setIsFirestoreSyncing] = useState<boolean>(true);
   const [firebaseUser, setFirebaseUser] = useState<User | null>(null);
 
+  // Authentication & Gmail Account Sync
   useEffect(() => {
-    const unsub = onAuthStateChanged(auth, (user) => {
+    const unsub = onAuthStateChanged(auth, async (user) => {
       setFirebaseUser(user);
+      if (user && user.email) {
+        const emailLower = user.email.toLowerCase();
+        const isAdminEmail = emailLower === 'hueloperfums@gmail.com';
+        
+        // Find existing user in state
+        const found = users.find(u => u.email.toLowerCase() === emailLower);
+        if (found) {
+          if (isAdminEmail && (found.role !== 'admin' || found.status !== 'active')) {
+            const updated: AppUser = {
+              ...found,
+              role: 'admin',
+              status: 'active',
+              lastLoginAt: new Date().toISOString()
+            };
+            await safeSetDoc(doc(db, 'users', found.id), updated);
+          }
+          setCurrentUserId(found.id);
+        } else {
+          // Register new user doc in Firestore
+          const cleanUid = user.uid.replace(/[^a-zA-Z0-9_-]/g, '').slice(0, 20) || `${Date.now()}`;
+          const newUserId = `usr-${cleanUid}`;
+          const newUser: AppUser = {
+            id: newUserId,
+            name: user.displayName || user.email.split('@')[0],
+            email: user.email,
+            role: isAdminEmail ? 'admin' : 'user',
+            status: isAdminEmail ? 'active' : 'pending_approval',
+            photoURL: user.photoURL || undefined,
+            createdAt: new Date().toISOString(),
+            lastLoginAt: new Date().toISOString()
+          };
+          
+          await safeSetDoc(doc(db, 'users', newUserId), newUser);
+          setCurrentUserId(newUserId);
+          
+          // Notify admin and manager of pending user
+          if (!isAdminEmail) {
+            const alertLog: AuditLog = {
+              id: `log-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
+              timestamp: new Date().toISOString(),
+              user: newUser.name,
+              action: 'New User Registered',
+              details: `User ${user.email} (${newUser.name}) signed in via Google. Pending Admin/Manager approval in Settings.`,
+              severity: 'alert'
+            };
+            await safeSetDoc(doc(db, 'auditLogs', alertLog.id), alertLog);
+          }
+        }
+      }
     });
     return () => unsub();
-  }, []);
+  }, [users]);
 
   const loginGoogle = async () => {
-    await signInWithGoogle();
+    try {
+      await signInWithGoogle();
+    } catch (err) {
+      console.error('Google Sign-in failed:', err);
+    }
   };
 
   const logoutGoogle = async () => {
-    await signOutUser();
+    try {
+      await signOutUser();
+      // Reset back to initial default demo admin or cashier
+      setCurrentUserId('usr-1');
+    } catch (err) {
+      console.error('Sign-out failed:', err);
+    }
   };
 
-  const currentUser = users.find(u => u.id === currentUserId) || users[2];
+  const currentUser: AppUser = users.find(u => u.id === currentUserId) || users[0] || initialUsers[0];
 
   const switchUser = (userId: string) => {
     setCurrentUserId(userId);
-    addAuditLog('User Switched', `Active user changed to ${users.find(u => u.id === userId)?.name}`, 'info');
+    const target = users.find(u => u.id === userId);
+    if (target) {
+      addAuditLog('User Switched', `Active user changed to ${target.name} (${target.role.toUpperCase()})`, 'info');
+    }
   };
 
   // State initialized with fallbacks
@@ -290,6 +382,58 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       handleFirestoreError(error, OperationType.GET, 'auditLogs');
     });
 
+    // 8. USERS SUBSCRIPTION
+    const unsubUsers = onSnapshot(collection(db, 'users'), (snapshot) => {
+      if (snapshot.empty) {
+        initialUsers.forEach(u => {
+          safeSetDoc(doc(db, 'users', u.id), u).catch(err =>
+            handleFirestoreError(err, OperationType.WRITE, `users/${u.id}`)
+          );
+        });
+      } else {
+        const loaded: AppUser[] = [];
+        snapshot.forEach(docSnap => loaded.push(docSnap.data() as AppUser));
+        // Guarantee hueloperfums@gmail.com is permanently admin and active
+        const adminIndex = loaded.findIndex(u => u.email.toLowerCase() === 'hueloperfums@gmail.com');
+        if (adminIndex >= 0 && (loaded[adminIndex].role !== 'admin' || loaded[adminIndex].status !== 'active')) {
+          loaded[adminIndex].role = 'admin';
+          loaded[adminIndex].status = 'active';
+        }
+        setUsers(loaded);
+      }
+    }, (error) => {
+      handleFirestoreError(error, OperationType.GET, 'users');
+    });
+
+    // 9. ORDERS SUBSCRIPTION (User Portal Orders)
+    const unsubOrders = onSnapshot(collection(db, 'orders'), (snapshot) => {
+      const loaded: OnlineOrder[] = [];
+      snapshot.forEach(docSnap => loaded.push(docSnap.data() as OnlineOrder));
+      loaded.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+      setOrders(loaded);
+    }, (error) => {
+      handleFirestoreError(error, OperationType.GET, 'orders');
+    });
+
+    // 10. STORE SETTINGS SUBSCRIPTION
+    const unsubSettings = onSnapshot(doc(db, 'settings', 'general'), (docSnap) => {
+      if (docSnap.exists()) {
+        const data = docSnap.data() as StoreSettings;
+        setStoreSettings({
+          standardDeliveryFee: typeof data.standardDeliveryFee === 'number' ? data.standardDeliveryFee : 100,
+          freeDeliveryThreshold: typeof data.freeDeliveryThreshold === 'number' ? data.freeDeliveryThreshold : 1500,
+          gcashAccountName: data.gcashAccountName || 'HUELO PERFUMES OFFICIAL',
+          gcashNumber: data.gcashNumber || '0917-888-4835'
+        });
+      } else {
+        safeSetDoc(doc(db, 'settings', 'general'), defaultStoreSettings).catch(err =>
+          handleFirestoreError(err, OperationType.WRITE, 'settings/general')
+        );
+      }
+    }, (error) => {
+      handleFirestoreError(error, OperationType.GET, 'settings/general');
+    });
+
     return () => {
       unsubProducts();
       unsubSales();
@@ -298,8 +442,181 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       unsubExpenses();
       unsubShifts();
       unsubLogs();
+      unsubUsers();
+      unsubOrders();
+      unsubSettings();
     };
   }, []);
+
+  // Role & User Account Management
+  const updateUserRole = async (userId: string, newRole: UserRole) => {
+    const target = users.find(u => u.id === userId);
+    if (!target) return;
+    if (target.email.toLowerCase() === 'hueloperfums@gmail.com' && newRole !== 'admin') {
+      alert('hueloperfums@gmail.com is the permanent Super Admin account and cannot be modified.');
+      return;
+    }
+    const updated: AppUser = { ...target, role: newRole };
+    try {
+      await safeSetDoc(doc(db, 'users', userId), updated);
+      await addAuditLog('Role Updated', `${target.name} (${target.email}) assigned role "${newRole.toUpperCase()}" by ${currentUser.name}`, 'warning');
+    } catch (err) {
+      handleFirestoreError(err, OperationType.UPDATE, `users/${userId}`);
+    }
+  };
+
+  const updateUserStatus = async (userId: string, newStatus: UserStatus) => {
+    const target = users.find(u => u.id === userId);
+    if (!target) return;
+    if (target.email.toLowerCase() === 'hueloperfums@gmail.com' && newStatus !== 'active') {
+      return;
+    }
+    const updated: AppUser = { 
+      ...target, 
+      status: newStatus, 
+      approvedBy: currentUser.name 
+    };
+    try {
+      await safeSetDoc(doc(db, 'users', userId), updated);
+      await addAuditLog('User Status Updated', `${target.name} (${target.email}) marked as "${newStatus}" by ${currentUser.name}`, 'info');
+    } catch (err) {
+      handleFirestoreError(err, OperationType.UPDATE, `users/${userId}`);
+    }
+  };
+
+  const updateUserName = async (userId: string, newName: string) => {
+    const trimmed = newName.trim();
+    if (!trimmed) {
+      alert('User name cannot be blank.');
+      return;
+    }
+    const target = users.find(u => u.id === userId);
+    if (!target) return;
+    if (currentUser.role !== 'admin' && currentUser.role !== 'manager') {
+      alert('Only administrators and managers have permission to edit user names.');
+      return;
+    }
+    const updated: AppUser = { ...target, name: trimmed };
+    try {
+      await safeSetDoc(doc(db, 'users', userId), updated);
+      await addAuditLog('User Name Updated', `User ${target.email} renamed from "${target.name}" to "${trimmed}" by ${currentUser.name} (${currentUser.role})`, 'info');
+    } catch (err) {
+      handleFirestoreError(err, OperationType.UPDATE, `users/${userId}`);
+    }
+  };
+
+  const deleteUser = async (userId: string) => {
+    const target = users.find(u => u.id === userId);
+    if (!target) return;
+    if (currentUser.role !== 'admin' && currentUser.role !== 'manager') {
+      alert('Only administrators and managers have permission to delete user accounts.');
+      return;
+    }
+    if (target.email.toLowerCase() === 'hueloperfums@gmail.com') {
+      alert('hueloperfums@gmail.com is the permanent Super Admin account and cannot be deleted.');
+      return;
+    }
+    if (userId === currentUser.id) {
+      alert('You cannot delete your own currently logged-in account.');
+      return;
+    }
+    try {
+      await deleteDoc(doc(db, 'users', userId));
+      setUsers(prev => prev.filter(u => u.id !== userId));
+      await addAuditLog(
+        'User Deleted',
+        `User account ${target.name} (${target.email}, role: ${target.role}) was deleted by ${currentUser.name} (${currentUser.role})`,
+        'warning'
+      );
+    } catch (err) {
+      handleFirestoreError(err, OperationType.DELETE, `users/${userId}`);
+    }
+  };
+
+  const updateStoreSettings = async (newSettings: Partial<StoreSettings>) => {
+    if (currentUser.role !== 'admin') {
+      alert('Only store administrators can configure delivery fees and GCash payment information.');
+      return;
+    }
+    const merged: StoreSettings = {
+      standardDeliveryFee: typeof newSettings.standardDeliveryFee === 'number' ? Math.max(0, newSettings.standardDeliveryFee) : storeSettings.standardDeliveryFee,
+      freeDeliveryThreshold: typeof newSettings.freeDeliveryThreshold === 'number' ? Math.max(0, newSettings.freeDeliveryThreshold) : storeSettings.freeDeliveryThreshold,
+      gcashAccountName: (newSettings.gcashAccountName ?? storeSettings.gcashAccountName).trim(),
+      gcashNumber: (newSettings.gcashNumber ?? storeSettings.gcashNumber).trim()
+    };
+    try {
+      await safeSetDoc(doc(db, 'settings', 'general'), merged);
+      setStoreSettings(merged);
+      await addAuditLog(
+        'Store Settings Updated',
+        `Delivery fee: ₱${merged.standardDeliveryFee}, Free threshold: ₱${merged.freeDeliveryThreshold}, GCash: ${merged.gcashNumber} (${merged.gcashAccountName}) by ${currentUser.name}`,
+        'info'
+      );
+    } catch (err) {
+      handleFirestoreError(err, OperationType.WRITE, 'settings/general');
+    }
+  };
+
+  const pendingUsersCount = users.filter(u => u.status === 'pending_approval').length;
+
+  // Online Orders (User Portal)
+  const placeOnlineOrder = async (orderData: Omit<OnlineOrder, 'id' | 'orderNumber' | 'createdAt' | 'status'>): Promise<OnlineOrder> => {
+    const orderId = `ord-${Date.now()}`;
+    const dateStr = new Date().toISOString().slice(0, 10).replace(/-/g, '');
+    const randomSuffix = Math.floor(100 + Math.random() * 900);
+    const orderNumber = `HP-${dateStr}-${randomSuffix}`;
+
+    const newOrder: OnlineOrder = {
+      ...orderData,
+      id: orderId,
+      orderNumber,
+      createdAt: new Date().toISOString(),
+      status: 'pending'
+    };
+
+    // Deduct stock for ordered items
+    for (const item of newOrder.items) {
+      const product = products.find(p => p.id === item.productId);
+      if (product) {
+        const variantIndex = product.variants.findIndex(v => v.id === item.variantId);
+        if (variantIndex >= 0) {
+          const updatedVariants = [...product.variants];
+          const currentStock = updatedVariants[variantIndex].stock;
+          updatedVariants[variantIndex] = {
+            ...updatedVariants[variantIndex],
+            stock: Math.max(0, currentStock - item.quantity)
+          };
+          const updatedProduct = { ...product, variants: updatedVariants };
+          await safeSetDoc(doc(db, 'products', product.id), updatedProduct);
+        }
+      }
+    }
+
+    try {
+      await safeSetDoc(doc(db, 'orders', orderId), newOrder);
+      await addAuditLog(
+        'Online Order Placed',
+        `Order #${orderNumber} placed by ${newOrder.customerName} for ₱${newOrder.total.toLocaleString()} (${newOrder.deliveryType === 'delivery' ? 'Delivery' : 'Store Pickup'})`,
+        'info'
+      );
+    } catch (err) {
+      handleFirestoreError(err, OperationType.CREATE, `orders/${orderId}`);
+    }
+
+    return newOrder;
+  };
+
+  const updateOrderStatus = async (orderId: string, status: OrderStatus) => {
+    const target = orders.find(o => o.id === orderId);
+    if (!target) return;
+    const updated: OnlineOrder = { ...target, status };
+    try {
+      await safeSetDoc(doc(db, 'orders', orderId), updated);
+      await addAuditLog('Order Status Updated', `Order #${target.orderNumber} status updated to "${status}" by ${currentUser.name}`, 'info');
+    } catch (err) {
+      handleFirestoreError(err, OperationType.UPDATE, `orders/${orderId}`);
+    }
+  };
 
   const addAuditLog = async (action: string, details: string, severity: 'info' | 'warning' | 'alert' = 'info') => {
     const newLog: AuditLog = {
@@ -853,6 +1170,16 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         loginGoogle,
         logoutGoogle,
         isFirestoreSyncing,
+        updateUserRole,
+        updateUserStatus,
+        updateUserName,
+        deleteUser,
+        pendingUsersCount,
+        storeSettings,
+        updateStoreSettings,
+        orders,
+        placeOnlineOrder,
+        updateOrderStatus,
         products,
         addProduct,
         updateProduct,

@@ -201,11 +201,59 @@ export interface RegisterShift {
   notes?: string;
 }
 
-export type UserRole = 'admin' | 'manager' | 'cashier';
+export type UserRole = 'admin' | 'manager' | 'cashier' | 'user';
+
+export type UserStatus = 'active' | 'pending_approval' | 'disabled';
 
 export interface AppUser {
   id: string;
   name: string;
   role: UserRole;
   email: string;
+  status: UserStatus;
+  photoURL?: string;
+  createdAt: string;
+  lastLoginAt?: string;
+  approvedBy?: string;
+}
+
+export type OrderStatus = 'pending' | 'confirmed' | 'preparing' | 'ready_for_pickup' | 'completed' | 'cancelled';
+
+export interface OnlineOrderItem {
+  productId: string;
+  variantId: string;
+  productName: string;
+  brand: string;
+  size: PerfumeSize;
+  imageUrl?: string;
+  unitPrice: number;
+  quantity: number;
+  lineTotal: number;
+}
+
+export interface OnlineOrder {
+  id: string;
+  orderNumber: string;
+  createdAt: string;
+  userId: string;
+  customerName: string;
+  customerEmail: string;
+  customerPhone: string;
+  deliveryType: 'pickup' | 'delivery';
+  deliveryAddress?: string;
+  paymentMethod: 'gcash' | 'cash_on_delivery' | 'store_pickup_cash';
+  paymentReference?: string;
+  items: OnlineOrderItem[];
+  subtotal: number;
+  deliveryFee: number;
+  total: number;
+  status: OrderStatus;
+  notes?: string;
+}
+
+export interface StoreSettings {
+  standardDeliveryFee: number;
+  freeDeliveryThreshold: number;
+  gcashAccountName: string;
+  gcashNumber: string;
 }

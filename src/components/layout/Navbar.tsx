@@ -70,6 +70,33 @@ export const Navbar: React.FC<{ onOpenShiftModal: () => void }> = ({ onOpenShift
             >
               Reports &amp; P&amp;L
             </button>
+            {(currentUser.role === 'admin' || currentUser.role === 'manager') && (
+              <button
+                onClick={() => setActiveTab('settings')}
+                className={`whitespace-nowrap shrink-0 pb-1 border-b-2 transition-colors flex items-center gap-1.5 ${
+                  activeTab === 'settings'
+                    ? 'border-amber-400 text-amber-200'
+                    : 'border-transparent text-stone-300 hover:text-white'
+                }`}
+              >
+                <span>Setting</span>
+                {useApp().pendingUsersCount > 0 && (
+                  <span className="px-1.5 py-0.2 rounded-full text-[10px] font-bold bg-amber-400 text-stone-950 animate-pulse">
+                    {useApp().pendingUsersCount}
+                  </span>
+                )}
+              </button>
+            )}
+            <button
+              onClick={() => setActiveTab('portal')}
+              className={`whitespace-nowrap shrink-0 pb-1 border-b-2 transition-colors flex items-center gap-1.5 ${
+                activeTab === 'portal'
+                  ? 'border-amber-400 text-amber-200'
+                  : 'border-transparent text-amber-300/80 hover:text-amber-200'
+              }`}
+            >
+              <span>User Portal</span>
+            </button>
           </nav>
 
           {/* Zone 3: 1 primary action */}
@@ -96,7 +123,7 @@ export const Navbar: React.FC<{ onOpenShiftModal: () => void }> = ({ onOpenShift
               className="flex items-center gap-2 px-3 py-1.5 text-xs font-medium text-stone-900 bg-amber-400 hover:bg-amber-300 rounded-lg transition-colors whitespace-nowrap shrink-0 font-medium"
             >
               <ShoppingCart className="w-3.5 h-3.5" />
-              <span>Cart</span>
+              <span>POS Cart</span>
               <span className="font-mono-numbers bg-stone-900 text-amber-300 text-[11px] px-1.5 py-0.2 rounded font-bold">
                 {cartItemCount}
               </span>
