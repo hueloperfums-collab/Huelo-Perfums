@@ -10,7 +10,8 @@ import {
   Layers, 
   ArrowUpDown,
   CheckCircle2,
-  AlertCircle
+  AlertCircle,
+  Camera
 } from 'lucide-react';
 import { ProductModal } from './ProductModal';
 import { BarcodePrintModal } from './BarcodePrintModal';
@@ -144,14 +145,22 @@ export const ProductManagement: React.FC = () => {
                 
                 {/* Perfume Identity */}
                 <div className="flex items-start gap-4">
-                  <div className="w-16 h-16 rounded-lg bg-stone-100 overflow-hidden shrink-0 border border-stone-200">
+                  <button 
+                    type="button"
+                    onClick={() => handleOpenEdit(product)}
+                    className="relative w-16 h-16 rounded-lg bg-stone-100 overflow-hidden shrink-0 border border-stone-200 group cursor-pointer hover:border-amber-500 transition-all text-left"
+                    title="Click to edit perfume & image"
+                  >
                     <img 
                       src={product.imageUrl} 
                       alt={product.name} 
                       referrerPolicy="no-referrer"
-                      className="w-full h-full object-cover" 
+                      className="w-full h-full object-cover group-hover:scale-105 transition-transform" 
                     />
-                  </div>
+                    <div className="absolute inset-0 bg-stone-900/60 opacity-0 group-hover:opacity-100 flex items-center justify-center text-amber-300 transition-opacity">
+                      <Camera className="w-5 h-5" />
+                    </div>
+                  </button>
 
                   <div>
                     <div className="flex items-center gap-2 text-xs text-stone-500">
