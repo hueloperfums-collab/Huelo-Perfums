@@ -31,13 +31,14 @@ import {
   signOutUser,
   testFirestoreConnection, 
   handleFirestoreError, 
-  OperationType 
+  OperationType,
+  safeSetDoc,
+  cleanForFirestore
 } from '../lib/firebase';
 import { onAuthStateChanged, User } from 'firebase/auth';
 import { 
   collection, 
   doc, 
-  setDoc, 
   deleteDoc, 
   onSnapshot, 
   getDocs, 
@@ -168,7 +169,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       if (snapshot.empty) {
         // Seed initial products to Firestore
         initialProducts.forEach(prod => {
-          setDoc(doc(db, 'products', prod.id), prod).catch(err => 
+          safeSetDoc(doc(db, 'products', prod.id), prod).catch(err => 
             handleFirestoreError(err, OperationType.WRITE, `products/${prod.id}`)
           );
         });
@@ -187,7 +188,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const unsubSales = onSnapshot(collection(db, 'sales'), (snapshot) => {
       if (snapshot.empty) {
         initialSales.forEach(sale => {
-          setDoc(doc(db, 'sales', sale.id), sale).catch(err =>
+          safeSetDoc(doc(db, 'sales', sale.id), sale).catch(err =>
             handleFirestoreError(err, OperationType.WRITE, `sales/${sale.id}`)
           );
         });
@@ -205,7 +206,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const unsubCustomers = onSnapshot(collection(db, 'customers'), (snapshot) => {
       if (snapshot.empty) {
         initialCustomers.forEach(cust => {
-          setDoc(doc(db, 'customers', cust.id), cust).catch(err =>
+          safeSetDoc(doc(db, 'customers', cust.id), cust).catch(err =>
             handleFirestoreError(err, OperationType.WRITE, `customers/${cust.id}`)
           );
         });
@@ -222,7 +223,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const unsubSuppliers = onSnapshot(collection(db, 'suppliers'), (snapshot) => {
       if (snapshot.empty) {
         initialSuppliers.forEach(supp => {
-          setDoc(doc(db, 'suppliers', supp.id), supp).catch(err =>
+          safeSetDoc(doc(db, 'suppliers', supp.id), supp).catch(err =>
             handleFirestoreError(err, OperationType.WRITE, `suppliers/${supp.id}`)
           );
         });
@@ -239,7 +240,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const unsubExpenses = onSnapshot(collection(db, 'expenses'), (snapshot) => {
       if (snapshot.empty) {
         initialExpenses.forEach(exp => {
-          setDoc(doc(db, 'expenses', exp.id), exp).catch(err =>
+          safeSetDoc(doc(db, 'expenses', exp.id), exp).catch(err =>
             handleFirestoreError(err, OperationType.WRITE, `expenses/${exp.id}`)
           );
         });
@@ -256,7 +257,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     // 6. SHIFTS SUBSCRIPTION
     const unsubShifts = onSnapshot(collection(db, 'shifts'), (snapshot) => {
       if (snapshot.empty) {
-        setDoc(doc(db, 'shifts', initialShift.id), initialShift).catch(err =>
+        safeSetDoc(doc(db, 'shifts', initialShift.id), initialShift).catch(err =>
           handleFirestoreError(err, OperationType.WRITE, `shifts/${initialShift.id}`)
         );
       } else {
@@ -275,7 +276,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const unsubLogs = onSnapshot(collection(db, 'auditLogs'), (snapshot) => {
       if (snapshot.empty) {
         initialAuditLogs.forEach(log => {
-          setDoc(doc(db, 'auditLogs', log.id), log).catch(err =>
+          safeSetDoc(doc(db, 'auditLogs', log.id), log).catch(err =>
             handleFirestoreError(err, OperationType.WRITE, `auditLogs/${log.id}`)
           );
         });
@@ -310,7 +311,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       severity
     };
     try {
-      await setDoc(doc(db, 'auditLogs', newLog.id), newLog);
+      await safeSetDoc(doc(db, 'auditLogs', newLog.id), newLog);
     } catch (err) {
       handleFirestoreError(err, OperationType.CREATE, `auditLogs/${newLog.id}`);
     }
@@ -446,13 +447,15 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       invoiceNumber,
       timestamp: new Date().toISOString(),
       cashierName: currentUser.name,
-      customer: selectedCustomer ? {
-        id: selectedCustomer.id,
-        name: selectedCustomer.name,
-        phone: selectedCustomer.phone,
-        pointsEarned,
-        pointsRedeemed
-      } : undefined,
+      ...(selectedCustomer ? {
+        customer: {
+          id: selectedCustomer.id,
+          name: selectedCustomer.name,
+          phone: selectedCustomer.phone || '',
+          pointsEarned,
+          pointsRedeemed
+        }
+      } : {}),
       items: [...cart],
       subtotal: cartSubtotal,
       discountAmount,
@@ -464,12 +467,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       paymentMethod,
       paymentDetails,
       status: 'completed',
-      notes
+      ...(notes ? { notes } : {})
     };
 
     try {
-      // 1. Save Sale to Firestore
-      await setDoc(doc(db, 'sales', newSale.id), newSale);
+      // 1. Save Sale to Firestore (using safeSetDoc to scrub any undefined values)
+      await safeSetDoc(doc(db, 'sales', newSale.id), newSale);
 
       // 2. Deduct Stock in Firestore for each product
       for (const prod of products) {
@@ -483,7 +486,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             return v;
           });
           const updatedProd = { ...prod, variants: updatedVariants };
-          await setDoc(doc(db, 'products', prod.id), updatedProd);
+          await safeSetDoc(doc(db, 'products', prod.id), updatedProd);
         }
       }
 
@@ -503,7 +506,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           totalOrders: selectedCustomer.totalOrders + 1,
           tier
         };
-        await setDoc(doc(db, 'customers', selectedCustomer.id), updatedCust);
+        await safeSetDoc(doc(db, 'customers', selectedCustomer.id), updatedCust);
       }
 
       // 4. Update Shift in Firestore
@@ -529,7 +532,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         cardSales,
         expectedCash: currentShift.openingFloat + cashSales
       };
-      await setDoc(doc(db, 'shifts', currentShift.id), updatedShift);
+      await safeSetDoc(doc(db, 'shifts', currentShift.id), updatedShift);
 
       // 5. Audit Log
       await addAuditLog('Sale Completed', `Processed ${invoiceNumber} for ₱${cartTotal.toLocaleString()} (${paymentMethod.toUpperCase()})`, 'info');
@@ -558,13 +561,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             }
             return v;
           });
-          await setDoc(doc(db, 'products', prod.id), { ...prod, variants: updatedVariants });
+          await safeSetDoc(doc(db, 'products', prod.id), { ...prod, variants: updatedVariants });
         }
       }
 
       // 2. Mark refunded
       const updatedSale = { ...sale, status: 'refunded' as const, notes: `Refunded: ${reason}` };
-      await setDoc(doc(db, 'sales', saleId), updatedSale);
+      await safeSetDoc(doc(db, 'sales', saleId), updatedSale);
 
       await addAuditLog('Sale Refunded', `Refunded ${sale.invoiceNumber} - ${reason}`, 'warning');
     } catch (err) {
@@ -584,7 +587,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     });
 
     try {
-      await setDoc(doc(db, 'products', prod.id), { ...prod, variants: updatedVariants });
+      await safeSetDoc(doc(db, 'products', prod.id), { ...prod, variants: updatedVariants });
       await addAuditLog(
         'Stock Adjustment',
         `${adj.productName} (${adj.size}) changed by ${adj.difference > 0 ? '+' : ''}${adj.difference} (${adj.reason}). Now: ${adj.newStock}`,
@@ -611,7 +614,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             }
             return v;
           });
-          await setDoc(doc(db, 'products', prod.id), { ...prod, variants: updatedVariants });
+          await safeSetDoc(doc(db, 'products', prod.id), { ...prod, variants: updatedVariants });
         }
       }
 
@@ -627,7 +630,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const addProduct = async (product: PerfumeProduct) => {
     try {
-      await setDoc(doc(db, 'products', product.id), product);
+      await safeSetDoc(doc(db, 'products', product.id), product);
       await addAuditLog('Product Added', `Added perfume ${product.name} with ${product.variants.length} size variants`, 'info');
     } catch (err) {
       handleFirestoreError(err, OperationType.CREATE, `products/${product.id}`);
@@ -636,7 +639,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const updateProduct = async (updated: PerfumeProduct) => {
     try {
-      await setDoc(doc(db, 'products', updated.id), updated);
+      await safeSetDoc(doc(db, 'products', updated.id), updated);
       await addAuditLog('Product Updated', `Updated product details for ${updated.name}`, 'info');
     } catch (err) {
       handleFirestoreError(err, OperationType.UPDATE, `products/${updated.id}`);
@@ -661,10 +664,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       totalSpend: 0,
       totalOrders: 0,
       tier: 'Bronze',
-      joinedDate: new Date().toISOString().slice(0, 10)
+      joinedDate: new Date().toISOString().slice(0, 10),
+      ...(data.email ? { email: data.email } : {}),
+      ...(data.notes ? { notes: data.notes } : {})
     };
     try {
-      await setDoc(doc(db, 'customers', newCust.id), newCust);
+      await safeSetDoc(doc(db, 'customers', newCust.id), newCust);
       await addAuditLog('Customer Registered', `Created customer profile for ${newCust.name} (${newCust.phone})`, 'info');
     } catch (err) {
       handleFirestoreError(err, OperationType.CREATE, `customers/${newCust.id}`);
@@ -678,7 +683,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       id: `supp-${Date.now()}`
     };
     try {
-      await setDoc(doc(db, 'suppliers', newSupp.id), newSupp);
+      await safeSetDoc(doc(db, 'suppliers', newSupp.id), newSupp);
       await addAuditLog('Supplier Added', `Registered supplier ${newSupp.name}`, 'info');
     } catch (err) {
       handleFirestoreError(err, OperationType.CREATE, `suppliers/${newSupp.id}`);
@@ -690,10 +695,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       ...expData,
       id: `exp-${Date.now()}`,
       date: new Date().toISOString().slice(0, 10),
-      recordedBy: currentUser.name
+      recordedBy: currentUser.name,
+      ...(expData.referenceNumber ? { referenceNumber: expData.referenceNumber } : {})
     };
     try {
-      await setDoc(doc(db, 'expenses', newExp.id), newExp);
+      await safeSetDoc(doc(db, 'expenses', newExp.id), newExp);
       await addAuditLog('Expense Logged', `₱${newExp.amount.toLocaleString()} - ${newExp.category}: ${newExp.description}`, 'info');
     } catch (err) {
       handleFirestoreError(err, OperationType.CREATE, `expenses/${newExp.id}`);
@@ -718,10 +724,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       actualCash,
       discrepancy,
       status: 'closed',
-      notes
+      ...(notes ? { notes } : {})
     };
     try {
-      await setDoc(doc(db, 'shifts', closed.id), closed);
+      await safeSetDoc(doc(db, 'shifts', closed.id), closed);
       await addAuditLog(
         'Register Shift Closed',
         `Cashier ${currentShift.cashier} closed register. Expected Cash: ₱${currentShift.expectedCash.toLocaleString()}, Actual: ₱${actualCash.toLocaleString()} (Diff: ₱${discrepancy})`,
@@ -746,7 +752,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       notes: `Opened by ${cashierName} with float ₱${openingFloat.toLocaleString()}`
     };
     try {
-      await setDoc(doc(db, 'shifts', newShift.id), newShift);
+      await safeSetDoc(doc(db, 'shifts', newShift.id), newShift);
       await addAuditLog('Register Shift Opened', `New shift by ${cashierName} with float ₱${openingFloat.toLocaleString()}`, 'info');
     } catch (err) {
       handleFirestoreError(err, OperationType.CREATE, `shifts/${newShift.id}`);
@@ -779,26 +785,26 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       const parsed = JSON.parse(jsonData);
       if (parsed.products && Array.isArray(parsed.products)) {
         for (const p of parsed.products) {
-          await setDoc(doc(db, 'products', p.id), p);
+          await safeSetDoc(doc(db, 'products', p.id), p);
         }
         if (parsed.sales && Array.isArray(parsed.sales)) {
           for (const s of parsed.sales) {
-            await setDoc(doc(db, 'sales', s.id), s);
+            await safeSetDoc(doc(db, 'sales', s.id), s);
           }
         }
         if (parsed.customers && Array.isArray(parsed.customers)) {
           for (const c of parsed.customers) {
-            await setDoc(doc(db, 'customers', c.id), c);
+            await safeSetDoc(doc(db, 'customers', c.id), c);
           }
         }
         if (parsed.suppliers && Array.isArray(parsed.suppliers)) {
           for (const sp of parsed.suppliers) {
-            await setDoc(doc(db, 'suppliers', sp.id), sp);
+            await safeSetDoc(doc(db, 'suppliers', sp.id), sp);
           }
         }
         if (parsed.expenses && Array.isArray(parsed.expenses)) {
           for (const e of parsed.expenses) {
-            await setDoc(doc(db, 'expenses', e.id), e);
+            await safeSetDoc(doc(db, 'expenses', e.id), e);
           }
         }
         await addAuditLog('Data Restored', 'Imported database from backup JSON into Firestore', 'warning');
@@ -813,21 +819,21 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const resetToDefaults = async () => {
     try {
       for (const p of initialProducts) {
-        await setDoc(doc(db, 'products', p.id), p);
+        await safeSetDoc(doc(db, 'products', p.id), p);
       }
       for (const s of initialSales) {
-        await setDoc(doc(db, 'sales', s.id), s);
+        await safeSetDoc(doc(db, 'sales', s.id), s);
       }
       for (const c of initialCustomers) {
-        await setDoc(doc(db, 'customers', c.id), c);
+        await safeSetDoc(doc(db, 'customers', c.id), c);
       }
       for (const sp of initialSuppliers) {
-        await setDoc(doc(db, 'suppliers', sp.id), sp);
+        await safeSetDoc(doc(db, 'suppliers', sp.id), sp);
       }
       for (const e of initialExpenses) {
-        await setDoc(doc(db, 'expenses', e.id), e);
+        await safeSetDoc(doc(db, 'expenses', e.id), e);
       }
-      await setDoc(doc(db, 'shifts', initialShift.id), initialShift);
+      await safeSetDoc(doc(db, 'shifts', initialShift.id), initialShift);
       clearCart();
       await addAuditLog('System Reset', 'Demo database restored to default factory state in Firestore', 'alert');
     } catch (err) {

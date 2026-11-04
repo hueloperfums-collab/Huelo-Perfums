@@ -61,6 +61,46 @@ export function handleFirestoreError(error: unknown, operationType: OperationTyp
   return errInfo;
 }
 
+/**
+ * Recursively strips `undefined` values from data objects and arrays.
+ * Firestore setDoc/updateDoc strictly disallows `undefined` fields.
+ */
+export function cleanForFirestore<T>(data: T): T {
+  if (data === null || data === undefined) {
+    return data;
+  }
+  if (Array.isArray(data)) {
+    return data
+      .filter((item) => item !== undefined)
+      .map((item) => cleanForFirestore(item)) as unknown as T;
+  }
+  if (typeof data === 'object') {
+    if (data instanceof Date) {
+      return data;
+    }
+    const cleaned: Record<string, any> = {};
+    for (const [key, val] of Object.entries(data)) {
+      if (val !== undefined) {
+        cleaned[key] = cleanForFirestore(val);
+      }
+    }
+    return cleaned as T;
+  }
+  return data;
+}
+
+/**
+ * Safe wrapper around setDoc that automatically cleanses undefined fields
+ */
+export async function safeSetDoc<T extends Record<string, any>>(
+  docRef: any,
+  data: T,
+  options?: any
+) {
+  const cleaned = cleanForFirestore(data);
+  return options ? setDoc(docRef, cleaned, options) : setDoc(docRef, cleaned);
+}
+
 // Test initial connection to Firestore
 export async function testFirestoreConnection(): Promise<boolean> {
   try {
