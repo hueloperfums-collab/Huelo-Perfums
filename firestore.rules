@@ -1,0 +1,70 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function isValidId(id) {
+      return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    // Default deny for unmatched collections
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // Test connection probe
+    match /test/{testId} {
+      allow read, write: if true;
+    }
+
+    // Products: POS perfume catalog and size variants
+    match /products/{productId} {
+      allow get: if isValidId(productId);
+      allow list: if true;
+      allow create, update, delete: if isValidId(productId);
+    }
+
+    // Sales transactions: Orders and checkout receipts
+    match /sales/{saleId} {
+      allow get: if isValidId(saleId);
+      allow list: if true;
+      allow create, update: if isValidId(saleId);
+      allow delete: if false; // Immutable sales receipts for audit compliance
+    }
+
+    // Customers: Loyalty points and contact profiles
+    match /customers/{customerId} {
+      allow get: if isValidId(customerId);
+      allow list: if true;
+      allow create, update, delete: if isValidId(customerId);
+    }
+
+    // Suppliers: Fragrance oils and bottle vendors
+    match /suppliers/{supplierId} {
+      allow get: if isValidId(supplierId);
+      allow list: if true;
+      allow create, update, delete: if isValidId(supplierId);
+    }
+
+    // Expenses: Store operating costs
+    match /expenses/{expenseId} {
+      allow get: if isValidId(expenseId);
+      allow list: if true;
+      allow create, update, delete: if isValidId(expenseId);
+    }
+
+    // Audit logs: Immutable activity record
+    match /auditLogs/{logId} {
+      allow get: if isValidId(logId);
+      allow list: if true;
+      allow create: if isValidId(logId);
+      allow update, delete: if false; // Append-only audit trail
+    }
+
+    // Shifts: Register drawer shifts and cash reconciliation
+    match /shifts/{shiftId} {
+      allow get: if isValidId(shiftId);
+      allow list: if true;
+      allow create, update, delete: if isValidId(shiftId);
+    }
+  }
+}

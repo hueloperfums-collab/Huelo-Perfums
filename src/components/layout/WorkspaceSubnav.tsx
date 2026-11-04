@@ -10,13 +10,24 @@ import {
   Truck, 
   BarChart3, 
   History, 
-  Clock,
-  RotateCcw,
-  Download
+  Clock, 
+  RotateCcw, 
+  Download,
+  Database
 } from 'lucide-react';
 
 export const WorkspaceSubnav: React.FC<{ onOpenShiftModal: () => void }> = ({ onOpenShiftModal }) => {
-  const { activeTab, setActiveTab, currentShift, exportSystemData, resetToDefaults } = useApp();
+  const { 
+    activeTab, 
+    setActiveTab, 
+    currentShift, 
+    exportSystemData, 
+    resetToDefaults, 
+    isFirestoreSyncing,
+    firebaseUser,
+    loginGoogle,
+    logoutGoogle
+  } = useApp();
 
   const tabs = [
     { id: 'pos', label: 'POS Terminal', icon: ShoppingBag },
@@ -55,8 +66,31 @@ export const WorkspaceSubnav: React.FC<{ onOpenShiftModal: () => void }> = ({ on
           })}
         </div>
 
-        {/* Shift status & utility actions */}
+        {/* Shift status, Firestore indicator & utility actions */}
         <div className="flex items-center gap-2 shrink-0">
+          <div className="hidden lg:flex items-center gap-1.5 px-2 py-1 text-[11px] text-stone-600 bg-stone-200/60 rounded">
+            <Database className="w-3 h-3 text-amber-700" />
+            <span>{isFirestoreSyncing ? 'Syncing...' : 'Firestore Live'}</span>
+          </div>
+
+          {firebaseUser ? (
+            <button
+              onClick={logoutGoogle}
+              className="hidden sm:flex items-center gap-1 px-2 py-1 text-xs text-stone-700 bg-stone-200 hover:bg-stone-300 rounded transition-colors"
+              title={`Signed in as ${firebaseUser.email}`}
+            >
+              <span>{firebaseUser.email?.split('@')[0]}</span>
+              <span className="text-stone-400">·</span>
+              <span className="text-[10px] text-stone-500">Sign Out</span>
+            </button>
+          ) : (
+            <button
+              onClick={loginGoogle}
+              className="hidden sm:flex items-center gap-1 px-2 py-1 text-xs text-amber-900 bg-amber-100 hover:bg-amber-200 rounded font-medium transition-colors"
+            >
+              <span>Google Sign-In</span>
+            </button>
+          )}
           <button
             onClick={onOpenShiftModal}
             className="flex items-center gap-1.5 px-2.5 py-1 text-xs rounded-md bg-stone-200 hover:bg-stone-300 text-stone-800 transition-colors whitespace-nowrap"

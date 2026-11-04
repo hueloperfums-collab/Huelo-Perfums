@@ -50,7 +50,7 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({ onClose, onSuccess
     setCashReceived(cartTotal.toString());
   };
 
-  const handleConfirm = () => {
+  const handleConfirm = async () => {
     setErrorMsg(null);
 
     if (paymentMethod === 'cash') {
@@ -58,7 +58,7 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({ onClose, onSuccess
         setErrorMsg(`Cash received (₱${cashNum.toFixed(2)}) is less than total amount (₱${cartTotal.toFixed(2)}).`);
         return;
       }
-      const sale = completeSale('cash', {
+      const sale = await completeSale('cash', {
         cashReceived: cashNum,
         changeGiven
       }, notes);
@@ -68,7 +68,7 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({ onClose, onSuccess
         setErrorMsg('Please input the GCash 9-13 digit transaction reference number.');
         return;
       }
-      const sale = completeSale('gcash', {
+      const sale = await completeSale('gcash', {
         gcashRef: gcashRef.trim()
       }, notes);
       if (sale) onSuccess(sale);
@@ -77,7 +77,7 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({ onClose, onSuccess
         setErrorMsg('Please enter the POS terminal card reference or authorization code.');
         return;
       }
-      const sale = completeSale('card', {
+      const sale = await completeSale('card', {
         cardRef: cardRef.trim()
       }, notes);
       if (sale) onSuccess(sale);
@@ -86,7 +86,7 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({ onClose, onSuccess
         setErrorMsg(`Split payment sum (₱${splitTotal.toFixed(2)}) must equal the order total (₱${cartTotal.toFixed(2)}).`);
         return;
       }
-      const sale = completeSale('split', {
+      const sale = await completeSale('split', {
         splitCash: splitCashNum,
         splitGcash: splitGcashNum,
         gcashRef: gcashRef.trim() || undefined

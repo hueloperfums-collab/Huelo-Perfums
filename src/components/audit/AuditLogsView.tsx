@@ -35,9 +35,9 @@ export const AuditLogsView: React.FC = () => {
     if (!file) return;
 
     const reader = new FileReader();
-    reader.onload = (event) => {
+    reader.onload = async (event) => {
       const content = event.target?.result as string;
-      const success = importSystemData(content);
+      const success = await importSystemData(content);
       if (success) {
         setImportStatus('Successfully restored database from backup file.');
       } else {

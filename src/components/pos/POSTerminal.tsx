@@ -134,11 +134,11 @@ export const POSTerminal: React.FC = () => {
     setSelectedVariants(prev => ({ ...prev, [productId]: variantId }));
   };
 
-  const handleQuickAddCustomer = (e: React.FormEvent) => {
+  const handleQuickAddCustomer = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newCustName.trim() || !newCustPhone.trim()) return;
 
-    const created = addCustomer({
+    const created = await addCustomer({
       name: newCustName.trim(),
       phone: newCustPhone.trim(),
       email: newCustEmail.trim() || undefined

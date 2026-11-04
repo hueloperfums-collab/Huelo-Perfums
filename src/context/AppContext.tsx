@@ -24,6 +24,25 @@ import {
   initialShift, 
   initialUsers 
 } from '../data/initialData';
+import { 
+  db, 
+  auth,
+  signInWithGoogle,
+  signOutUser,
+  testFirestoreConnection, 
+  handleFirestoreError, 
+  OperationType 
+} from '../lib/firebase';
+import { onAuthStateChanged, User } from 'firebase/auth';
+import { 
+  collection, 
+  doc, 
+  setDoc, 
+  deleteDoc, 
+  onSnapshot, 
+  getDocs, 
+  writeBatch 
+} from 'firebase/firestore';
 
 interface DiscountConfig {
   type: 'none' | 'custom' | 'pwd_senior_20' | 'promo_10' | 'loyalty_points';
@@ -37,14 +56,18 @@ interface AppContextType {
   currentUser: AppUser;
   users: AppUser[];
   switchUser: (userId: string) => void;
+  firebaseUser: any | null;
+  loginGoogle: () => Promise<void>;
+  logoutGoogle: () => Promise<void>;
+  isFirestoreSyncing: boolean;
 
   // Products & Stock
   products: PerfumeProduct[];
-  addProduct: (product: PerfumeProduct) => void;
-  updateProduct: (product: PerfumeProduct) => void;
-  deleteProduct: (productId: string) => void;
-  adjustVariantStock: (adjustment: Omit<StockAdjustment, 'id' | 'date' | 'user'>) => void;
-  processStockIn: (po: Omit<PurchaseOrder, 'id' | 'date'>) => void;
+  addProduct: (product: PerfumeProduct) => Promise<void>;
+  updateProduct: (product: PerfumeProduct) => Promise<void>;
+  deleteProduct: (productId: string) => Promise<void>;
+  adjustVariantStock: (adjustment: Omit<StockAdjustment, 'id' | 'date' | 'user'>) => Promise<void>;
+  processStockIn: (po: Omit<PurchaseOrder, 'id' | 'date'>) => Promise<void>;
 
   // Cart & POS
   cart: CartItem[];
@@ -64,127 +87,220 @@ interface AppContextType {
     paymentMethod: PaymentMethod,
     paymentDetails: SaleTransaction['paymentDetails'],
     notes?: string
-  ) => SaleTransaction | null;
+  ) => Promise<SaleTransaction | null>;
 
   // Sales & Records
   sales: SaleTransaction[];
-  refundSale: (saleId: string, reason: string) => void;
+  refundSale: (saleId: string, reason: string) => Promise<void>;
 
   // Customers & Suppliers & Expenses
   customers: Customer[];
-  addCustomer: (customer: Omit<Customer, 'id' | 'loyaltyPoints' | 'totalSpend' | 'totalOrders' | 'tier' | 'joinedDate'>) => Customer;
+  addCustomer: (customer: Omit<Customer, 'id' | 'loyaltyPoints' | 'totalSpend' | 'totalOrders' | 'tier' | 'joinedDate'>) => Promise<Customer>;
   suppliers: Supplier[];
-  addSupplier: (supplier: Omit<Supplier, 'id'>) => void;
+  addSupplier: (supplier: Omit<Supplier, 'id'>) => Promise<void>;
   expenses: Expense[];
-  addExpense: (expense: Omit<Expense, 'id' | 'date' | 'recordedBy'>) => void;
-  deleteExpense: (id: string) => void;
+  addExpense: (expense: Omit<Expense, 'id' | 'date' | 'recordedBy'>) => Promise<void>;
+  deleteExpense: (id: string) => Promise<void>;
 
   // Register Shift & Audit
   currentShift: RegisterShift;
-  closeShift: (actualCash: number, notes?: string) => void;
-  openNewShift: (cashierName: string, openingFloat: number) => void;
+  closeShift: (actualCash: number, notes?: string) => Promise<void>;
+  openNewShift: (cashierName: string, openingFloat: number) => Promise<void>;
   auditLogs: AuditLog[];
 
   // Data Persistence & Tools
   exportSystemData: () => void;
-  importSystemData: (jsonData: string) => boolean;
-  resetToDefaults: () => void;
+  importSystemData: (jsonData: string) => Promise<boolean>;
+  resetToDefaults: () => Promise<void>;
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
 
-const STORAGE_KEYS = {
-  PRODUCTS: 'aura_perfumes_products_v1',
-  SALES: 'aura_perfumes_sales_v1',
-  CUSTOMERS: 'aura_perfumes_customers_v1',
-  SUPPLIERS: 'aura_perfumes_suppliers_v1',
-  EXPENSES: 'aura_perfumes_expenses_v1',
-  SHIFT: 'aura_perfumes_shift_v1',
-  LOGS: 'aura_perfumes_logs_v1',
-  CURRENT_USER_ID: 'aura_perfumes_user_id_v1',
-};
-
 export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [activeTab, setActiveTab] = useState<string>('pos');
   const [users] = useState<AppUser[]>(initialUsers);
-  const [currentUserId, setCurrentUserId] = useState<string>(() => {
-    return localStorage.getItem(STORAGE_KEYS.CURRENT_USER_ID) || 'usr-3'; // Default Camille Cruz (Cashier)
-  });
+  const [currentUserId, setCurrentUserId] = useState<string>('usr-3'); // Default Camille Cruz (Cashier)
+  const [isFirestoreSyncing, setIsFirestoreSyncing] = useState<boolean>(true);
+  const [firebaseUser, setFirebaseUser] = useState<User | null>(null);
+
+  useEffect(() => {
+    const unsub = onAuthStateChanged(auth, (user) => {
+      setFirebaseUser(user);
+    });
+    return () => unsub();
+  }, []);
+
+  const loginGoogle = async () => {
+    await signInWithGoogle();
+  };
+
+  const logoutGoogle = async () => {
+    await signOutUser();
+  };
 
   const currentUser = users.find(u => u.id === currentUserId) || users[2];
 
   const switchUser = (userId: string) => {
     setCurrentUserId(userId);
-    localStorage.setItem(STORAGE_KEYS.CURRENT_USER_ID, userId);
     addAuditLog('User Switched', `Active user changed to ${users.find(u => u.id === userId)?.name}`, 'info');
   };
 
-  // State with LocalStorage fallbacks
-  const [products, setProducts] = useState<PerfumeProduct[]>(() => {
-    const saved = localStorage.getItem(STORAGE_KEYS.PRODUCTS);
-    return saved ? JSON.parse(saved) : initialProducts;
-  });
+  // State initialized with fallbacks
+  const [products, setProducts] = useState<PerfumeProduct[]>(initialProducts);
+  const [sales, setSales] = useState<SaleTransaction[]>(initialSales);
+  const [customers, setCustomers] = useState<Customer[]>(initialCustomers);
+  const [suppliers, setSuppliers] = useState<Supplier[]>(initialSuppliers);
+  const [expenses, setExpenses] = useState<Expense[]>(initialExpenses);
+  const [currentShift, setCurrentShift] = useState<RegisterShift>(initialShift);
+  const [auditLogs, setAuditLogs] = useState<AuditLog[]>(initialAuditLogs);
 
-  const [sales, setSales] = useState<SaleTransaction[]>(() => {
-    const saved = localStorage.getItem(STORAGE_KEYS.SALES);
-    return saved ? JSON.parse(saved) : initialSales;
-  });
+  // Cart state
+  const [cart, setCart] = useState<CartItem[]>([]);
+  const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
+  const [discount, setDiscount] = useState<DiscountConfig>({ type: 'none', value: 0 });
 
-  const [customers, setCustomers] = useState<Customer[]>(() => {
-    const saved = localStorage.getItem(STORAGE_KEYS.CUSTOMERS);
-    return saved ? JSON.parse(saved) : initialCustomers;
-  });
-
-  const [suppliers, setSuppliers] = useState<Supplier[]>(() => {
-    const saved = localStorage.getItem(STORAGE_KEYS.SUPPLIERS);
-    return saved ? JSON.parse(saved) : initialSuppliers;
-  });
-
-  const [expenses, setExpenses] = useState<Expense[]>(() => {
-    const saved = localStorage.getItem(STORAGE_KEYS.EXPENSES);
-    return saved ? JSON.parse(saved) : initialExpenses;
-  });
-
-  const [currentShift, setCurrentShift] = useState<RegisterShift>(() => {
-    const saved = localStorage.getItem(STORAGE_KEYS.SHIFT);
-    return saved ? JSON.parse(saved) : initialShift;
-  });
-
-  const [auditLogs, setAuditLogs] = useState<AuditLog[]>(() => {
-    const saved = localStorage.getItem(STORAGE_KEYS.LOGS);
-    return saved ? JSON.parse(saved) : initialAuditLogs;
-  });
-
-  // Sync to localStorage
+  // Firestore Real-Time Subscriptions & Bootstrapping
   useEffect(() => {
-    localStorage.setItem(STORAGE_KEYS.PRODUCTS, JSON.stringify(products));
-  }, [products]);
+    testFirestoreConnection();
 
-  useEffect(() => {
-    localStorage.setItem(STORAGE_KEYS.SALES, JSON.stringify(sales));
-  }, [sales]);
+    // 1. PRODUCTS SUBSCRIPTION
+    const unsubProducts = onSnapshot(collection(db, 'products'), (snapshot) => {
+      if (snapshot.empty) {
+        // Seed initial products to Firestore
+        initialProducts.forEach(prod => {
+          setDoc(doc(db, 'products', prod.id), prod).catch(err => 
+            handleFirestoreError(err, OperationType.WRITE, `products/${prod.id}`)
+          );
+        });
+      } else {
+        const loaded: PerfumeProduct[] = [];
+        snapshot.forEach(docSnap => loaded.push(docSnap.data() as PerfumeProduct));
+        setProducts(loaded);
+      }
+      setIsFirestoreSyncing(false);
+    }, (error) => {
+      handleFirestoreError(error, OperationType.GET, 'products');
+      setIsFirestoreSyncing(false);
+    });
 
-  useEffect(() => {
-    localStorage.setItem(STORAGE_KEYS.CUSTOMERS, JSON.stringify(customers));
-  }, [customers]);
+    // 2. SALES SUBSCRIPTION
+    const unsubSales = onSnapshot(collection(db, 'sales'), (snapshot) => {
+      if (snapshot.empty) {
+        initialSales.forEach(sale => {
+          setDoc(doc(db, 'sales', sale.id), sale).catch(err =>
+            handleFirestoreError(err, OperationType.WRITE, `sales/${sale.id}`)
+          );
+        });
+      } else {
+        const loaded: SaleTransaction[] = [];
+        snapshot.forEach(docSnap => loaded.push(docSnap.data() as SaleTransaction));
+        loaded.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+        setSales(loaded);
+      }
+    }, (error) => {
+      handleFirestoreError(error, OperationType.GET, 'sales');
+    });
 
-  useEffect(() => {
-    localStorage.setItem(STORAGE_KEYS.SUPPLIERS, JSON.stringify(suppliers));
-  }, [suppliers]);
+    // 3. CUSTOMERS SUBSCRIPTION
+    const unsubCustomers = onSnapshot(collection(db, 'customers'), (snapshot) => {
+      if (snapshot.empty) {
+        initialCustomers.forEach(cust => {
+          setDoc(doc(db, 'customers', cust.id), cust).catch(err =>
+            handleFirestoreError(err, OperationType.WRITE, `customers/${cust.id}`)
+          );
+        });
+      } else {
+        const loaded: Customer[] = [];
+        snapshot.forEach(docSnap => loaded.push(docSnap.data() as Customer));
+        setCustomers(loaded);
+      }
+    }, (error) => {
+      handleFirestoreError(error, OperationType.GET, 'customers');
+    });
 
-  useEffect(() => {
-    localStorage.setItem(STORAGE_KEYS.EXPENSES, JSON.stringify(expenses));
-  }, [expenses]);
+    // 4. SUPPLIERS SUBSCRIPTION
+    const unsubSuppliers = onSnapshot(collection(db, 'suppliers'), (snapshot) => {
+      if (snapshot.empty) {
+        initialSuppliers.forEach(supp => {
+          setDoc(doc(db, 'suppliers', supp.id), supp).catch(err =>
+            handleFirestoreError(err, OperationType.WRITE, `suppliers/${supp.id}`)
+          );
+        });
+      } else {
+        const loaded: Supplier[] = [];
+        snapshot.forEach(docSnap => loaded.push(docSnap.data() as Supplier));
+        setSuppliers(loaded);
+      }
+    }, (error) => {
+      handleFirestoreError(error, OperationType.GET, 'suppliers');
+    });
 
-  useEffect(() => {
-    localStorage.setItem(STORAGE_KEYS.SHIFT, JSON.stringify(currentShift));
-  }, [currentShift]);
+    // 5. EXPENSES SUBSCRIPTION
+    const unsubExpenses = onSnapshot(collection(db, 'expenses'), (snapshot) => {
+      if (snapshot.empty) {
+        initialExpenses.forEach(exp => {
+          setDoc(doc(db, 'expenses', exp.id), exp).catch(err =>
+            handleFirestoreError(err, OperationType.WRITE, `expenses/${exp.id}`)
+          );
+        });
+      } else {
+        const loaded: Expense[] = [];
+        snapshot.forEach(docSnap => loaded.push(docSnap.data() as Expense));
+        loaded.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+        setExpenses(loaded);
+      }
+    }, (error) => {
+      handleFirestoreError(error, OperationType.GET, 'expenses');
+    });
 
-  useEffect(() => {
-    localStorage.setItem(STORAGE_KEYS.LOGS, JSON.stringify(auditLogs));
-  }, [auditLogs]);
+    // 6. SHIFTS SUBSCRIPTION
+    const unsubShifts = onSnapshot(collection(db, 'shifts'), (snapshot) => {
+      if (snapshot.empty) {
+        setDoc(doc(db, 'shifts', initialShift.id), initialShift).catch(err =>
+          handleFirestoreError(err, OperationType.WRITE, `shifts/${initialShift.id}`)
+        );
+      } else {
+        const loaded: RegisterShift[] = [];
+        snapshot.forEach(docSnap => loaded.push(docSnap.data() as RegisterShift));
+        loaded.sort((a, b) => new Date(b.openedAt).getTime() - new Date(a.openedAt).getTime());
+        if (loaded.length > 0) {
+          setCurrentShift(loaded[0]);
+        }
+      }
+    }, (error) => {
+      handleFirestoreError(error, OperationType.GET, 'shifts');
+    });
 
-  const addAuditLog = (action: string, details: string, severity: 'info' | 'warning' | 'alert' = 'info') => {
+    // 7. AUDIT LOGS SUBSCRIPTION
+    const unsubLogs = onSnapshot(collection(db, 'auditLogs'), (snapshot) => {
+      if (snapshot.empty) {
+        initialAuditLogs.forEach(log => {
+          setDoc(doc(db, 'auditLogs', log.id), log).catch(err =>
+            handleFirestoreError(err, OperationType.WRITE, `auditLogs/${log.id}`)
+          );
+        });
+      } else {
+        const loaded: AuditLog[] = [];
+        snapshot.forEach(docSnap => loaded.push(docSnap.data() as AuditLog));
+        loaded.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+        setAuditLogs(loaded);
+      }
+    }, (error) => {
+      handleFirestoreError(error, OperationType.GET, 'auditLogs');
+    });
+
+    return () => {
+      unsubProducts();
+      unsubSales();
+      unsubCustomers();
+      unsubSuppliers();
+      unsubExpenses();
+      unsubShifts();
+      unsubLogs();
+    };
+  }, []);
+
+  const addAuditLog = async (action: string, details: string, severity: 'info' | 'warning' | 'alert' = 'info') => {
     const newLog: AuditLog = {
       id: `log-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
       timestamp: new Date().toISOString(),
@@ -193,16 +309,14 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       details,
       severity
     };
-    setAuditLogs(prev => [newLog, ...prev]);
+    try {
+      await setDoc(doc(db, 'auditLogs', newLog.id), newLog);
+    } catch (err) {
+      handleFirestoreError(err, OperationType.CREATE, `auditLogs/${newLog.id}`);
+    }
   };
 
-  // Cart state
-  const [cart, setCart] = useState<CartItem[]>([]);
-  const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
-  const [discount, setDiscount] = useState<DiscountConfig>({ type: 'none', value: 0 });
-
   const addToCart = (product: PerfumeProduct, variant: PerfumeVariant, quantity: number = 1) => {
-    // Check stock
     const existingIndex = cart.findIndex(item => item.variantId === variant.id);
     const currentQtyInCart = existingIndex >= 0 ? cart[existingIndex].quantity : 0;
     const requestedQty = currentQtyInCart + quantity;
@@ -250,7 +364,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setCart(prev => {
       return prev.map(item => {
         if (item.variantId === variantId) {
-          // Find stock
           const prod = products.find(p => p.id === item.productId);
           const variant = prod?.variants.find(v => v.id === variantId);
           const maxStock = variant ? variant.stock : 999;
@@ -312,18 +425,17 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const cartTotal = Math.max(0, cartSubtotal - discountAmount);
 
-  // Complete Sale
-  const completeSale = (
+  // Complete Sale with Firestore Write
+  const completeSale = async (
     paymentMethod: PaymentMethod,
     paymentDetails: SaleTransaction['paymentDetails'],
     notes?: string
-  ): SaleTransaction | null => {
+  ): Promise<SaleTransaction | null> => {
     if (cart.length === 0) return null;
 
     const totalCost = cart.reduce((acc, item) => acc + (item.unitCost * item.quantity), 0);
     const grossProfit = cartTotal - totalCost;
 
-    // Award loyalty points: 1 point for every ₱50 spent
     const pointsEarned = Math.floor(cartTotal / 50);
     const pointsRedeemed = discount.type === 'loyalty_points' ? discountAmount : 0;
 
@@ -355,58 +467,49 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       notes
     };
 
-    // 1. Deduct Stock from Products
-    setProducts(prevProducts => {
-      return prevProducts.map(prod => {
+    try {
+      // 1. Save Sale to Firestore
+      await setDoc(doc(db, 'sales', newSale.id), newSale);
+
+      // 2. Deduct Stock in Firestore for each product
+      for (const prod of products) {
         const matchingCartItems = cart.filter(c => c.productId === prod.id);
-        if (matchingCartItems.length === 0) return prod;
-
-        const updatedVariants = prod.variants.map(v => {
-          const cartItem = matchingCartItems.find(c => c.variantId === v.id);
-          if (cartItem) {
-            return {
-              ...v,
-              stock: Math.max(0, v.stock - cartItem.quantity)
-            };
-          }
-          return v;
-        });
-
-        return {
-          ...prod,
-          variants: updatedVariants
-        };
-      });
-    });
-
-    // 2. Update Customer Loyalty & Spend
-    if (selectedCustomer) {
-      setCustomers(prev => prev.map(c => {
-        if (c.id === selectedCustomer.id) {
-          const newPoints = Math.max(0, c.loyaltyPoints - pointsRedeemed + pointsEarned);
-          const newSpend = c.totalSpend + cartTotal;
-          let tier = c.tier;
-          if (newSpend >= 10000) tier = 'VIP';
-          else if (newSpend >= 5000) tier = 'Gold';
-          else if (newSpend >= 2000) tier = 'Silver';
-
-          return {
-            ...c,
-            loyaltyPoints: newPoints,
-            totalSpend: newSpend,
-            totalOrders: c.totalOrders + 1,
-            tier
-          };
+        if (matchingCartItems.length > 0) {
+          const updatedVariants = prod.variants.map(v => {
+            const cartItem = matchingCartItems.find(c => c.variantId === v.id);
+            if (cartItem) {
+              return { ...v, stock: Math.max(0, v.stock - cartItem.quantity) };
+            }
+            return v;
+          });
+          const updatedProd = { ...prod, variants: updatedVariants };
+          await setDoc(doc(db, 'products', prod.id), updatedProd);
         }
-        return c;
-      }));
-    }
+      }
 
-    // 3. Update Register Shift sales totals
-    setCurrentShift(prev => {
-      let cashSales = prev.cashSales;
-      let gcashSales = prev.gcashSales;
-      let cardSales = prev.cardSales;
+      // 3. Update Customer in Firestore
+      if (selectedCustomer) {
+        const newPoints = Math.max(0, selectedCustomer.loyaltyPoints - pointsRedeemed + pointsEarned);
+        const newSpend = selectedCustomer.totalSpend + cartTotal;
+        let tier = selectedCustomer.tier;
+        if (newSpend >= 10000) tier = 'VIP';
+        else if (newSpend >= 5000) tier = 'Gold';
+        else if (newSpend >= 2000) tier = 'Silver';
+
+        const updatedCust: Customer = {
+          ...selectedCustomer,
+          loyaltyPoints: newPoints,
+          totalSpend: newSpend,
+          totalOrders: selectedCustomer.totalOrders + 1,
+          tier
+        };
+        await setDoc(doc(db, 'customers', selectedCustomer.id), updatedCust);
+      }
+
+      // 4. Update Shift in Firestore
+      let cashSales = currentShift.cashSales;
+      let gcashSales = currentShift.gcashSales;
+      let cardSales = currentShift.cardSales;
 
       if (paymentMethod === 'cash') {
         cashSales += cartTotal;
@@ -419,125 +522,138 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         gcashSales += paymentDetails.splitGcash || 0;
       }
 
-      return {
-        ...prev,
+      const updatedShift: RegisterShift = {
+        ...currentShift,
         cashSales,
         gcashSales,
         cardSales,
-        expectedCash: prev.openingFloat + cashSales
+        expectedCash: currentShift.openingFloat + cashSales
       };
-    });
+      await setDoc(doc(db, 'shifts', currentShift.id), updatedShift);
 
-    // 4. Save Sale & Log
-    setSales(prev => [newSale, ...prev]);
-    addAuditLog('Sale Completed', `Processed ${invoiceNumber} for ₱${cartTotal.toLocaleString()} (${paymentMethod.toUpperCase()})`, 'info');
+      // 5. Audit Log
+      await addAuditLog('Sale Completed', `Processed ${invoiceNumber} for ₱${cartTotal.toLocaleString()} (${paymentMethod.toUpperCase()})`, 'info');
 
-    // Clear cart
-    clearCart();
-    return newSale;
+      clearCart();
+      return newSale;
+    } catch (err) {
+      handleFirestoreError(err, OperationType.WRITE, `sales/${newSale.id}`);
+      return null;
+    }
   };
 
-  const refundSale = (saleId: string, reason: string) => {
+  const refundSale = async (saleId: string, reason: string) => {
     const sale = sales.find(s => s.id === saleId);
     if (!sale || sale.status === 'refunded') return;
 
-    // Restore stock
-    setProducts(prev => {
-      return prev.map(prod => {
+    try {
+      // 1. Restore stock in Firestore
+      for (const prod of products) {
         const matchingItems = sale.items.filter(i => i.productId === prod.id);
-        if (matchingItems.length === 0) return prod;
-        return {
-          ...prod,
-          variants: prod.variants.map(v => {
+        if (matchingItems.length > 0) {
+          const updatedVariants = prod.variants.map(v => {
             const item = matchingItems.find(i => i.variantId === v.id);
             if (item) {
               return { ...v, stock: v.stock + item.quantity };
             }
             return v;
-          })
-        };
-      });
-    });
+          });
+          await setDoc(doc(db, 'products', prod.id), { ...prod, variants: updatedVariants });
+        }
+      }
 
-    // Update sale status
-    setSales(prev => prev.map(s => s.id === saleId ? { ...s, status: 'refunded', notes: `Refunded: ${reason}` } : s));
-    addAuditLog('Sale Refunded', `Refunded ${sale.invoiceNumber} - ${reason}`, 'warning');
+      // 2. Mark refunded
+      const updatedSale = { ...sale, status: 'refunded' as const, notes: `Refunded: ${reason}` };
+      await setDoc(doc(db, 'sales', saleId), updatedSale);
+
+      await addAuditLog('Sale Refunded', `Refunded ${sale.invoiceNumber} - ${reason}`, 'warning');
+    } catch (err) {
+      handleFirestoreError(err, OperationType.UPDATE, `sales/${saleId}`);
+    }
   };
 
-  // Stock Adjustment
-  const adjustVariantStock = (adj: Omit<StockAdjustment, 'id' | 'date' | 'user'>) => {
-    setProducts(prev => {
-      return prev.map(prod => {
-        if (prod.id !== adj.productId) return prod;
-        return {
-          ...prod,
-          variants: prod.variants.map(v => {
-            if (v.id === adj.variantId) {
-              return { ...v, stock: adj.newStock };
-            }
-            return v;
-          })
-        };
-      });
+  const adjustVariantStock = async (adj: Omit<StockAdjustment, 'id' | 'date' | 'user'>) => {
+    const prod = products.find(p => p.id === adj.productId);
+    if (!prod) return;
+
+    const updatedVariants = prod.variants.map(v => {
+      if (v.id === adj.variantId) {
+        return { ...v, stock: adj.newStock };
+      }
+      return v;
     });
 
-    addAuditLog(
-      'Stock Adjustment',
-      `${adj.productName} (${adj.size}) changed by ${adj.difference > 0 ? '+' : ''}${adj.difference} (${adj.reason}). Now: ${adj.newStock}`,
-      adj.reason === 'Damaged bottle' || adj.reason === 'Spillage during refill' ? 'warning' : 'info'
-    );
+    try {
+      await setDoc(doc(db, 'products', prod.id), { ...prod, variants: updatedVariants });
+      await addAuditLog(
+        'Stock Adjustment',
+        `${adj.productName} (${adj.size}) changed by ${adj.difference > 0 ? '+' : ''}${adj.difference} (${adj.reason}). Now: ${adj.newStock}`,
+        adj.reason === 'Damaged bottle' || adj.reason === 'Spillage during refill' ? 'warning' : 'info'
+      );
+    } catch (err) {
+      handleFirestoreError(err, OperationType.UPDATE, `products/${prod.id}`);
+    }
   };
 
-  // Stock In / Purchase Order
-  const processStockIn = (po: Omit<PurchaseOrder, 'id' | 'date'>) => {
-    setProducts(prev => {
-      return prev.map(prod => {
+  const processStockIn = async (po: Omit<PurchaseOrder, 'id' | 'date'>) => {
+    try {
+      for (const prod of products) {
         const poItemsForProd = po.items.filter(i => i.productId === prod.id);
-        if (poItemsForProd.length === 0) return prod;
-
-        return {
-          ...prod,
-          variants: prod.variants.map(v => {
+        if (poItemsForProd.length > 0) {
+          const updatedVariants = prod.variants.map(v => {
             const poItem = poItemsForProd.find(i => i.variantId === v.id);
             if (poItem) {
               return {
                 ...v,
                 stock: v.stock + poItem.quantity,
-                costPrice: poItem.unitCost // update latest cost
+                costPrice: poItem.unitCost
               };
             }
             return v;
-          })
-        };
-      });
-    });
+          });
+          await setDoc(doc(db, 'products', prod.id), { ...prod, variants: updatedVariants });
+        }
+      }
 
-    addAuditLog(
-      'Stock-In Received',
-      `PO #${po.poNumber} from ${po.supplierName} - Received ${po.items.reduce((a, b) => a + b.quantity, 0)} bottles (₱${po.totalAmount.toLocaleString()})`,
-      'info'
-    );
+      await addAuditLog(
+        'Stock-In Received',
+        `PO #${po.poNumber} from ${po.supplierName} - Received ${po.items.reduce((a, b) => a + b.quantity, 0)} bottles (₱${po.totalAmount.toLocaleString()})`,
+        'info'
+      );
+    } catch (err) {
+      handleFirestoreError(err, OperationType.WRITE, 'products');
+    }
   };
 
-  // Products CRUD
-  const addProduct = (product: PerfumeProduct) => {
-    setProducts(prev => [product, ...prev]);
-    addAuditLog('Product Added', `Added perfume ${product.name} with ${product.variants.length} size variants`, 'info');
+  const addProduct = async (product: PerfumeProduct) => {
+    try {
+      await setDoc(doc(db, 'products', product.id), product);
+      await addAuditLog('Product Added', `Added perfume ${product.name} with ${product.variants.length} size variants`, 'info');
+    } catch (err) {
+      handleFirestoreError(err, OperationType.CREATE, `products/${product.id}`);
+    }
   };
 
-  const updateProduct = (updated: PerfumeProduct) => {
-    setProducts(prev => prev.map(p => p.id === updated.id ? updated : p));
-    addAuditLog('Product Updated', `Updated product details for ${updated.name}`, 'info');
+  const updateProduct = async (updated: PerfumeProduct) => {
+    try {
+      await setDoc(doc(db, 'products', updated.id), updated);
+      await addAuditLog('Product Updated', `Updated product details for ${updated.name}`, 'info');
+    } catch (err) {
+      handleFirestoreError(err, OperationType.UPDATE, `products/${updated.id}`);
+    }
   };
 
-  const deleteProduct = (id: string) => {
+  const deleteProduct = async (id: string) => {
     const prod = products.find(p => p.id === id);
-    setProducts(prev => prev.filter(p => p.id !== id));
-    addAuditLog('Product Deleted', `Removed ${prod?.name || id} from catalog`, 'warning');
+    try {
+      await deleteDoc(doc(db, 'products', id));
+      await addAuditLog('Product Deleted', `Removed ${prod?.name || id} from catalog`, 'warning');
+    } catch (err) {
+      handleFirestoreError(err, OperationType.DELETE, `products/${id}`);
+    }
   };
 
-  // Customers
-  const addCustomer = (data: Omit<Customer, 'id' | 'loyaltyPoints' | 'totalSpend' | 'totalOrders' | 'tier' | 'joinedDate'>) => {
+  const addCustomer = async (data: Omit<Customer, 'id' | 'loyaltyPoints' | 'totalSpend' | 'totalOrders' | 'tier' | 'joinedDate'>) => {
     const newCust: Customer = {
       ...data,
       id: `cust-${Date.now()}`,
@@ -547,59 +663,76 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       tier: 'Bronze',
       joinedDate: new Date().toISOString().slice(0, 10)
     };
-    setCustomers(prev => [newCust, ...prev]);
-    addAuditLog('Customer Registered', `Created customer profile for ${newCust.name} (${newCust.phone})`, 'info');
+    try {
+      await setDoc(doc(db, 'customers', newCust.id), newCust);
+      await addAuditLog('Customer Registered', `Created customer profile for ${newCust.name} (${newCust.phone})`, 'info');
+    } catch (err) {
+      handleFirestoreError(err, OperationType.CREATE, `customers/${newCust.id}`);
+    }
     return newCust;
   };
 
-  // Suppliers
-  const addSupplier = (supplierData: Omit<Supplier, 'id'>) => {
+  const addSupplier = async (supplierData: Omit<Supplier, 'id'>) => {
     const newSupp: Supplier = {
       ...supplierData,
       id: `supp-${Date.now()}`
     };
-    setSuppliers(prev => [...prev, newSupp]);
-    addAuditLog('Supplier Added', `Registered supplier ${newSupp.name}`, 'info');
+    try {
+      await setDoc(doc(db, 'suppliers', newSupp.id), newSupp);
+      await addAuditLog('Supplier Added', `Registered supplier ${newSupp.name}`, 'info');
+    } catch (err) {
+      handleFirestoreError(err, OperationType.CREATE, `suppliers/${newSupp.id}`);
+    }
   };
 
-  // Expenses
-  const addExpense = (expData: Omit<Expense, 'id' | 'date' | 'recordedBy'>) => {
+  const addExpense = async (expData: Omit<Expense, 'id' | 'date' | 'recordedBy'>) => {
     const newExp: Expense = {
       ...expData,
       id: `exp-${Date.now()}`,
       date: new Date().toISOString().slice(0, 10),
       recordedBy: currentUser.name
     };
-    setExpenses(prev => [newExp, ...prev]);
-    addAuditLog('Expense Logged', `₱${newExp.amount.toLocaleString()} - ${newExp.category}: ${newExp.description}`, 'info');
+    try {
+      await setDoc(doc(db, 'expenses', newExp.id), newExp);
+      await addAuditLog('Expense Logged', `₱${newExp.amount.toLocaleString()} - ${newExp.category}: ${newExp.description}`, 'info');
+    } catch (err) {
+      handleFirestoreError(err, OperationType.CREATE, `expenses/${newExp.id}`);
+    }
   };
 
-  const deleteExpense = (id: string) => {
+  const deleteExpense = async (id: string) => {
     const exp = expenses.find(e => e.id === id);
-    setExpenses(prev => prev.filter(e => e.id !== id));
-    addAuditLog('Expense Deleted', `Removed expense ₱${exp?.amount} - ${exp?.description}`, 'warning');
+    try {
+      await deleteDoc(doc(db, 'expenses', id));
+      await addAuditLog('Expense Deleted', `Removed expense ₱${exp?.amount} - ${exp?.description}`, 'warning');
+    } catch (err) {
+      handleFirestoreError(err, OperationType.DELETE, `expenses/${id}`);
+    }
   };
 
-  // Shift Register
-  const closeShift = (actualCash: number, notes?: string) => {
+  const closeShift = async (actualCash: number, notes?: string) => {
     const discrepancy = actualCash - currentShift.expectedCash;
-    setCurrentShift(prev => ({
-      ...prev,
+    const closed: RegisterShift = {
+      ...currentShift,
       closedAt: new Date().toISOString(),
       actualCash,
       discrepancy,
       status: 'closed',
       notes
-    }));
-
-    addAuditLog(
-      'Register Shift Closed',
-      `Cashier ${currentShift.cashier} closed register. Expected Cash: ₱${currentShift.expectedCash.toLocaleString()}, Actual: ₱${actualCash.toLocaleString()} (Diff: ₱${discrepancy})`,
-      discrepancy !== 0 ? 'alert' : 'info'
-    );
+    };
+    try {
+      await setDoc(doc(db, 'shifts', closed.id), closed);
+      await addAuditLog(
+        'Register Shift Closed',
+        `Cashier ${currentShift.cashier} closed register. Expected Cash: ₱${currentShift.expectedCash.toLocaleString()}, Actual: ₱${actualCash.toLocaleString()} (Diff: ₱${discrepancy})`,
+        discrepancy !== 0 ? 'alert' : 'info'
+      );
+    } catch (err) {
+      handleFirestoreError(err, OperationType.UPDATE, `shifts/${closed.id}`);
+    }
   };
 
-  const openNewShift = (cashierName: string, openingFloat: number) => {
+  const openNewShift = async (cashierName: string, openingFloat: number) => {
     const newShift: RegisterShift = {
       id: `shift-${Date.now()}`,
       cashier: cashierName,
@@ -612,11 +745,14 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       status: 'open',
       notes: `Opened by ${cashierName} with float ₱${openingFloat.toLocaleString()}`
     };
-    setCurrentShift(newShift);
-    addAuditLog('Register Shift Opened', `New shift by ${cashierName} with float ₱${openingFloat.toLocaleString()}`, 'info');
+    try {
+      await setDoc(doc(db, 'shifts', newShift.id), newShift);
+      await addAuditLog('Register Shift Opened', `New shift by ${cashierName} with float ₱${openingFloat.toLocaleString()}`, 'info');
+    } catch (err) {
+      handleFirestoreError(err, OperationType.CREATE, `shifts/${newShift.id}`);
+    }
   };
 
-  // Backup & Restore
   const exportSystemData = () => {
     const backup = {
       exportedAt: new Date().toISOString(),
@@ -632,24 +768,40 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `Aura_Perfume_POS_Backup_${new Date().toISOString().slice(0, 10)}.json`;
+    a.download = `Aura_Perfume_Firestore_Backup_${new Date().toISOString().slice(0, 10)}.json`;
     a.click();
     URL.revokeObjectURL(url);
     addAuditLog('Data Backup', 'Exported complete database JSON archive', 'info');
   };
 
-  const importSystemData = (jsonData: string): boolean => {
+  const importSystemData = async (jsonData: string): Promise<boolean> => {
     try {
       const parsed = JSON.parse(jsonData);
       if (parsed.products && Array.isArray(parsed.products)) {
-        setProducts(parsed.products);
-        if (parsed.sales) setSales(parsed.sales);
-        if (parsed.customers) setCustomers(parsed.customers);
-        if (parsed.suppliers) setSuppliers(parsed.suppliers);
-        if (parsed.expenses) setExpenses(parsed.expenses);
-        if (parsed.auditLogs) setAuditLogs(parsed.auditLogs);
-        if (parsed.currentShift) setCurrentShift(parsed.currentShift);
-        addAuditLog('Data Restored', 'Imported database from backup JSON', 'warning');
+        for (const p of parsed.products) {
+          await setDoc(doc(db, 'products', p.id), p);
+        }
+        if (parsed.sales && Array.isArray(parsed.sales)) {
+          for (const s of parsed.sales) {
+            await setDoc(doc(db, 'sales', s.id), s);
+          }
+        }
+        if (parsed.customers && Array.isArray(parsed.customers)) {
+          for (const c of parsed.customers) {
+            await setDoc(doc(db, 'customers', c.id), c);
+          }
+        }
+        if (parsed.suppliers && Array.isArray(parsed.suppliers)) {
+          for (const sp of parsed.suppliers) {
+            await setDoc(doc(db, 'suppliers', sp.id), sp);
+          }
+        }
+        if (parsed.expenses && Array.isArray(parsed.expenses)) {
+          for (const e of parsed.expenses) {
+            await setDoc(doc(db, 'expenses', e.id), e);
+          }
+        }
+        await addAuditLog('Data Restored', 'Imported database from backup JSON into Firestore', 'warning');
         return true;
       }
       return false;
@@ -658,16 +810,29 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
   };
 
-  const resetToDefaults = () => {
-    setProducts(initialProducts);
-    setSales(initialSales);
-    setCustomers(initialCustomers);
-    setSuppliers(initialSuppliers);
-    setExpenses(initialExpenses);
-    setAuditLogs(initialAuditLogs);
-    setCurrentShift(initialShift);
-    clearCart();
-    addAuditLog('System Reset', 'Demo database restored to default factory state', 'alert');
+  const resetToDefaults = async () => {
+    try {
+      for (const p of initialProducts) {
+        await setDoc(doc(db, 'products', p.id), p);
+      }
+      for (const s of initialSales) {
+        await setDoc(doc(db, 'sales', s.id), s);
+      }
+      for (const c of initialCustomers) {
+        await setDoc(doc(db, 'customers', c.id), c);
+      }
+      for (const sp of initialSuppliers) {
+        await setDoc(doc(db, 'suppliers', sp.id), sp);
+      }
+      for (const e of initialExpenses) {
+        await setDoc(doc(db, 'expenses', e.id), e);
+      }
+      await setDoc(doc(db, 'shifts', initialShift.id), initialShift);
+      clearCart();
+      await addAuditLog('System Reset', 'Demo database restored to default factory state in Firestore', 'alert');
+    } catch (err) {
+      handleFirestoreError(err, OperationType.WRITE, 'resetToDefaults');
+    }
   };
 
   return (
@@ -678,6 +843,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         currentUser,
         users,
         switchUser,
+        firebaseUser,
+        loginGoogle,
+        logoutGoogle,
+        isFirestoreSyncing,
         products,
         addProduct,
         updateProduct,

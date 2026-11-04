@@ -1,0 +1,164 @@
+{
+  "entities": {
+    "PerfumeProduct": {
+      "title": "PerfumeProduct",
+      "description": "Perfume product record with olfactive notes and size variants",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string", "maxLength": 128 },
+        "brand": { "type": "string", "maxLength": 128 },
+        "category": { "type": "string", "maxLength": 64 },
+        "concentration": { "type": "string", "maxLength": 64 },
+        "description": { "type": "string", "maxLength": 500 },
+        "imageUrl": { "type": "string", "maxLength": 500 },
+        "fragranceNotes": { "type": "object" },
+        "variants": { "type": "array" },
+        "isBestSeller": { "type": "boolean" },
+        "active": { "type": "boolean" },
+        "createdAt": { "type": "string" }
+      },
+      "required": ["id", "name", "brand", "category", "variants", "active"]
+    },
+    "SaleTransaction": {
+      "title": "SaleTransaction",
+      "description": "Completed sales transaction record",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "invoiceNumber": { "type": "string", "maxLength": 64 },
+        "timestamp": { "type": "string" },
+        "cashierName": { "type": "string", "maxLength": 128 },
+        "customer": { "type": "object" },
+        "items": { "type": "array" },
+        "subtotal": { "type": "number" },
+        "discountAmount": { "type": "number" },
+        "discountType": { "type": "string" },
+        "taxAmount": { "type": "number" },
+        "total": { "type": "number" },
+        "totalCost": { "type": "number" },
+        "grossProfit": { "type": "number" },
+        "paymentMethod": { "type": "string" },
+        "paymentDetails": { "type": "object" },
+        "status": { "type": "string", "enum": ["completed", "refunded"] },
+        "notes": { "type": "string", "maxLength": 500 }
+      },
+      "required": ["id", "invoiceNumber", "timestamp", "cashierName", "items", "total", "paymentMethod", "status"]
+    },
+    "Customer": {
+      "title": "Customer",
+      "description": "Perfume VIP customer record with loyalty points",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string", "maxLength": 128 },
+        "phone": { "type": "string", "maxLength": 32 },
+        "email": { "type": "string", "maxLength": 128 },
+        "loyaltyPoints": { "type": "number" },
+        "totalSpend": { "type": "number" },
+        "totalOrders": { "type": "number" },
+        "tier": { "type": "string", "enum": ["Bronze", "Silver", "Gold", "VIP"] },
+        "notes": { "type": "string", "maxLength": 500 },
+        "joinedDate": { "type": "string" }
+      },
+      "required": ["id", "name", "phone", "loyaltyPoints", "totalSpend", "totalOrders", "tier"]
+    },
+    "Supplier": {
+      "title": "Supplier",
+      "description": "Supplier information for perfume oils and packaging",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string", "maxLength": 128 },
+        "contactPerson": { "type": "string", "maxLength": 128 },
+        "phone": { "type": "string", "maxLength": 32 },
+        "email": { "type": "string", "maxLength": 128 },
+        "address": { "type": "string", "maxLength": 256 },
+        "categoriesSupplied": { "type": "array" },
+        "leadTimeDays": { "type": "number" }
+      },
+      "required": ["id", "name", "contactPerson", "phone"]
+    },
+    "Expense": {
+      "title": "Expense",
+      "description": "Store operational expense entry",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "date": { "type": "string" },
+        "category": { "type": "string", "maxLength": 64 },
+        "description": { "type": "string", "maxLength": 256 },
+        "amount": { "type": "number" },
+        "paymentMethod": { "type": "string" },
+        "referenceNumber": { "type": "string", "maxLength": 64 },
+        "recordedBy": { "type": "string", "maxLength": 128 }
+      },
+      "required": ["id", "date", "category", "description", "amount", "paymentMethod", "recordedBy"]
+    },
+    "AuditLog": {
+      "title": "AuditLog",
+      "description": "Immutable log entry of user activities",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "timestamp": { "type": "string" },
+        "user": { "type": "string", "maxLength": 128 },
+        "action": { "type": "string", "maxLength": 128 },
+        "details": { "type": "string", "maxLength": 500 },
+        "severity": { "type": "string", "enum": ["info", "warning", "alert"] }
+      },
+      "required": ["id", "timestamp", "user", "action", "details", "severity"]
+    },
+    "RegisterShift": {
+      "title": "RegisterShift",
+      "description": "POS register shift and drawer cash balancing",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "cashier": { "type": "string", "maxLength": 128 },
+        "openedAt": { "type": "string" },
+        "closedAt": { "type": "string" },
+        "openingFloat": { "type": "number" },
+        "cashSales": { "type": "number" },
+        "gcashSales": { "type": "number" },
+        "cardSales": { "type": "number" },
+        "expectedCash": { "type": "number" },
+        "actualCash": { "type": "number" },
+        "discrepancy": { "type": "number" },
+        "status": { "type": "string", "enum": ["open", "closed"] },
+        "notes": { "type": "string", "maxLength": 500 }
+      },
+      "required": ["id", "cashier", "openedAt", "openingFloat", "status"]
+    }
+  },
+  "firestore": {
+    "/products/{productId}": {
+      "schema": "PerfumeProduct",
+      "description": "Catalog of perfume products and size variants"
+    },
+    "/sales/{saleId}": {
+      "schema": "SaleTransaction",
+      "description": "Customer purchase orders and sales transactions"
+    },
+    "/customers/{customerId}": {
+      "schema": "Customer",
+      "description": "Registered clients and loyalty points"
+    },
+    "/suppliers/{supplierId}": {
+      "schema": "Supplier",
+      "description": "Perfume raw material and bottle suppliers"
+    },
+    "/expenses/{expenseId}": {
+      "schema": "Expense",
+      "description": "Operating overhead and shop expenses"
+    },
+    "/auditLogs/{logId}": {
+      "schema": "AuditLog",
+      "description": "Staff activities and stock adjustments log"
+    },
+    "/shifts/{shiftId}": {
+      "schema": "RegisterShift",
+      "description": "Cash register shifts and drawer reconciliations"
+    }
+  }
+}
