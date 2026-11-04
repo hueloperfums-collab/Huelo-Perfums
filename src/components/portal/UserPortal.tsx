@@ -20,7 +20,10 @@ import {
   ChevronRight,
   Filter,
   PackageCheck,
-  CreditCard
+  CreditCard,
+  LogIn,
+  LogOut,
+  User as UserIcon
 } from 'lucide-react';
 
 export const UserPortal: React.FC = () => {
@@ -28,13 +31,18 @@ export const UserPortal: React.FC = () => {
     products, 
     currentUser, 
     firebaseUser, 
-    loginGoogle, 
-    logoutGoogle, 
+    isLoggedIn,
+    login,
+    logout,
     placeOnlineOrder, 
     orders, 
     setActiveTab,
-    storeSettings 
+    storeSettings,
+    users,
+    switchUser
   } = useApp();
+
+  const [isLoginModalOpen, setIsLoginModalOpen] = useState(false);
 
   // Search & Filter state
   const [searchQuery, setSearchQuery] = useState('');
@@ -274,28 +282,40 @@ export const UserPortal: React.FC = () => {
               )}
             </button>
 
-            {/* Google Authentication */}
-            {firebaseUser ? (
-              <div className="flex items-center gap-2 bg-stone-800/80 px-2.5 py-1 rounded-lg border border-stone-700">
-                <div className="w-5 h-5 rounded-full bg-amber-400 text-stone-900 flex items-center justify-center font-bold text-[10px]">
-                  {firebaseUser.displayName?.charAt(0) || firebaseUser.email?.charAt(0).toUpperCase()}
+            {/* User Authentication Status & Log Out / Log In */}
+            {isLoggedIn ? (
+              <div className="flex items-center gap-2 bg-stone-800/90 px-2.5 py-1.5 rounded-lg border border-stone-700">
+                <div className="w-6 h-6 rounded-full bg-amber-400 text-stone-900 flex items-center justify-center font-bold text-xs shrink-0">
+                  {currentUser.name?.charAt(0).toUpperCase() || 'U'}
                 </div>
-                <span className="text-stone-300 hidden md:inline truncate max-w-[120px]">
-                  {firebaseUser.email?.split('@')[0]}
-                </span>
+                <div className="hidden sm:flex flex-col text-left text-[11px] leading-tight max-w-[130px]">
+                  <span className="text-stone-200 font-semibold truncate">
+                    {currentUser.name}
+                  </span>
+                  <span className="text-stone-400 text-[10px] uppercase font-mono">
+                    {currentUser.role === 'admin' ? 'Admin' : currentUser.role === 'manager' ? 'Manager' : currentUser.role === 'cashier' ? 'Cashier' : 'Customer'}
+                  </span>
+                </div>
                 <button
-                  onClick={logoutGoogle}
-                  className="text-stone-400 hover:text-stone-200 text-[10px] ml-1"
+                  onClick={() => {
+                    if (window.confirm('Nais mo bang mag-Log Out sa iyong account?')) {
+                      logout();
+                    }
+                  }}
+                  className="flex items-center gap-1 text-rose-300 hover:text-rose-200 bg-rose-950/60 hover:bg-rose-900/80 px-2 py-1 rounded border border-rose-800/60 font-semibold text-xs ml-1 transition-colors"
+                  title="Mag-Log Out"
                 >
-                  Sign Out
+                  <LogOut className="w-3.5 h-3.5" />
+                  <span>Log Out</span>
                 </button>
               </div>
             ) : (
               <button
-                onClick={loginGoogle}
-                className="flex items-center gap-1.5 px-3 py-1.5 bg-amber-400 hover:bg-amber-300 text-stone-900 font-bold rounded-lg transition-colors"
+                onClick={() => setIsLoginModalOpen(true)}
+                className="flex items-center gap-1.5 px-3.5 py-1.5 bg-amber-400 hover:bg-amber-300 text-stone-900 font-bold rounded-lg transition-colors shadow-xs"
               >
-                <span>Sign in with Google</span>
+                <LogIn className="w-3.5 h-3.5" />
+                <span>Log In</span>
               </button>
             )}
 
@@ -636,9 +656,35 @@ export const UserPortal: React.FC = () => {
 
                   {/* Checkout Form */}
                   <form onSubmit={handleCheckoutSubmit} className="space-y-4 pt-4 border-t border-stone-200">
-                    <h3 className="text-xs font-bold uppercase text-stone-500 tracking-wider">
-                      Customer &amp; Fulfillment Details
-                    </h3>
+                    <div className="flex items-center justify-between">
+                      <h3 className="text-xs font-bold uppercase text-stone-500 tracking-wider">
+                        Customer &amp; Fulfillment Details
+                      </h3>
+                      {!isLoggedIn && (
+                        <button
+                          type="button"
+                          onClick={() => setIsLoginModalOpen(true)}
+                          className="text-[11px] font-bold text-amber-700 hover:text-amber-800 underline"
+                        >
+                          Mag-Log In para sa mabilis na checkout
+                        </button>
+                      )}
+                    </div>
+
+                    {!isLoggedIn && (
+                      <div className="p-3 bg-amber-50 border border-amber-200 rounded-xl flex items-center justify-between gap-3 text-xs">
+                        <div className="text-amber-900 leading-snug">
+                          <span className="font-bold">May account ka na ba?</span> Mag-Log In para ma-save ang address at ma-track ang order sa My Orders.
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => setIsLoginModalOpen(true)}
+                          className="px-3 py-1.5 bg-amber-400 hover:bg-amber-300 text-stone-900 font-bold rounded-lg shrink-0 transition-colors shadow-xs"
+                        >
+                          Log In
+                        </button>
+                      </div>
+                    )}
 
                     <div>
                       <label className="block text-xs font-semibold text-stone-700 mb-1">Full Name *</label>
@@ -928,6 +974,96 @@ export const UserPortal: React.FC = () => {
                 className="px-4 py-2 bg-stone-900 text-amber-300 text-xs font-bold rounded-lg"
               >
                 Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* DEDICATED LOG IN MODAL */}
+      {isLoginModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs animate-in fade-in duration-200">
+          <div className="bg-white rounded-2xl max-w-md w-full overflow-hidden shadow-2xl border border-stone-200">
+            {/* Modal Header */}
+            <div className="p-5 bg-stone-900 text-stone-100 flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <LogIn className="w-5 h-5 text-amber-400" />
+                <h3 className="font-serif-luxury font-bold text-base">Log In · HUELO PERFUMES</h3>
+              </div>
+              <button 
+                onClick={() => setIsLoginModalOpen(false)} 
+                className="text-stone-400 hover:text-white transition-colors"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Modal Content */}
+            <div className="p-6 space-y-6">
+              <div className="text-center space-y-2">
+                <div className="w-12 h-12 rounded-full bg-amber-100 text-amber-900 flex items-center justify-center mx-auto mb-2 font-bold text-base">
+                  HP
+                </div>
+                <h4 className="text-lg font-serif-luxury font-bold text-stone-900">Mag-Log In sa HUELO PERFUMES</h4>
+                <p className="text-xs text-stone-500 max-w-sm mx-auto">
+                  Mag-sign in gamit ang iyong Gmail account. Awtomatikong magiging Customer / User ang role para sa agarang pag-order at live tracking.
+                </p>
+              </div>
+
+              {/* Main Log In Action with Gmail */}
+              <div className="space-y-3">
+                <button
+                  type="button"
+                  onClick={async () => {
+                    setIsLoginModalOpen(false);
+                    await login();
+                  }}
+                  className="w-full py-3 px-4 bg-stone-900 hover:bg-stone-800 text-amber-300 font-bold text-sm rounded-xl shadow-md flex items-center justify-center gap-3 transition-all hover:scale-[1.01] active:scale-[0.99]"
+                >
+                  <svg className="w-4 h-4" viewBox="0 0 24 24">
+                    <path fill="#EA4335" d="M12 5c1.6 0 3 .6 4.1 1.6l3.1-3.1C17.3 1.8 14.8 1 12 1 7.4 1 3.5 3.6 1.6 7.4l3.7 2.9C6.2 7.4 8.9 5 12 5z"/>
+                    <path fill="#4285F4" d="M23.5 12.3c0-.8-.1-1.6-.2-2.3H12v4.5h6.5c-.3 1.5-1.1 2.8-2.4 3.7l3.7 2.9c2.2-2 3.7-5 3.7-8.8z"/>
+                    <path fill="#FBBC05" d="M5.3 14.7c-.2-.7-.4-1.5-.4-2.3s.2-1.6.4-2.3L1.6 7.2C.6 9.2 0 11.5 0 14s.6 4.8 1.6 6.8l3.7-6.1z"/>
+                    <path fill="#34A853" d="M12 23c3.2 0 6-1.1 8-3l-3.7-2.9c-1.1.7-2.5 1.2-4.3 1.2-3.1 0-5.8-2.4-6.7-5.5L1.6 15.7C3.5 19.5 7.4 23 12 23z"/>
+                  </svg>
+                  <span>Log In gamit ang Gmail</span>
+                </button>
+                <div className="bg-stone-50 border border-stone-200 rounded-lg p-2 text-center text-[11px] text-stone-500">
+                  <span className="font-semibold text-stone-700">Awtomatikong User Role:</span> Lahat ng bagong log in ay agad na magiging aktibong customer. Ang <span className="font-mono text-stone-700">hueloperfums@gmail.com</span> ay mananatiling Administrator.
+                </div>
+              </div>
+
+              {/* Staff Demo Quick Access (For Evaluation & Testing) */}
+              <div className="pt-4 border-t border-stone-200">
+                <span className="text-[11px] font-bold uppercase tracking-wider text-stone-400 block mb-2 text-center">
+                  O pumili ng Demo Staff Account (Testing)
+                </span>
+                <div className="grid grid-cols-3 gap-2">
+                  {users.filter(u => u.role !== 'user').slice(0, 3).map(u => (
+                    <button
+                      key={u.id}
+                      type="button"
+                      onClick={() => {
+                        switchUser(u.id);
+                        setIsLoginModalOpen(false);
+                      }}
+                      className="p-2 rounded-lg border border-stone-200 hover:border-amber-400 hover:bg-amber-50/50 text-left transition-colors"
+                    >
+                      <div className="text-[11px] font-bold text-stone-800 truncate">{u.name.split(' ')[0]}</div>
+                      <div className="text-[10px] uppercase font-mono text-amber-700 font-bold">{u.role}</div>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            <div className="p-3 bg-stone-50 border-t border-stone-200 text-center">
+              <button
+                type="button"
+                onClick={() => setIsLoginModalOpen(false)}
+                className="text-xs text-stone-500 hover:text-stone-800 font-medium"
+              >
+                Isara / Magpatuloy bilang Guest
               </button>
             </div>
           </div>

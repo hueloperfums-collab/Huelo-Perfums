@@ -1,9 +1,9 @@
 import React from 'react';
 import { useApp } from '../../context/AppContext';
-import { ShoppingCart } from 'lucide-react';
+import { ShoppingCart, LogOut, Store } from 'lucide-react';
 
 export const Navbar: React.FC<{ onOpenShiftModal: () => void }> = ({ onOpenShiftModal }) => {
-  const { activeTab, setActiveTab, cart, currentShift, currentUser, users, switchUser } = useApp();
+  const { activeTab, setActiveTab, cart, currentShift, currentUser, users, switchUser, logout } = useApp();
   const cartItemCount = cart.reduce((acc, item) => acc + item.quantity, 0);
 
   return (
@@ -91,16 +91,17 @@ export const Navbar: React.FC<{ onOpenShiftModal: () => void }> = ({ onOpenShift
               onClick={() => setActiveTab('portal')}
               className={`whitespace-nowrap shrink-0 pb-1 border-b-2 transition-colors flex items-center gap-1.5 ${
                 activeTab === 'portal'
-                  ? 'border-amber-400 text-amber-200'
+                  ? 'border-amber-400 text-amber-200 font-bold'
                   : 'border-transparent text-amber-300/80 hover:text-amber-200'
               }`}
             >
-              <span>User Portal</span>
+              <Store className="w-3.5 h-3.5" />
+              <span>Customer Store</span>
             </button>
           </nav>
 
-          {/* Zone 3: 1 primary action */}
-          <div className="flex items-center gap-3 shrink-0">
+          {/* Zone 3: User Role & Log Out Controls */}
+          <div className="flex items-center gap-2.5 shrink-0">
             {/* Quick Switch User & Role */}
             <div className="relative inline-block text-xs">
               <select
@@ -120,13 +121,27 @@ export const Navbar: React.FC<{ onOpenShiftModal: () => void }> = ({ onOpenShift
             {/* Quick Cart button for mobile / top access */}
             <button
               onClick={() => setActiveTab('pos')}
-              className="flex items-center gap-2 px-3 py-1.5 text-xs font-medium text-stone-900 bg-amber-400 hover:bg-amber-300 rounded-lg transition-colors whitespace-nowrap shrink-0 font-medium"
+              className="flex items-center gap-2 px-3 py-1.5 text-xs text-stone-900 bg-amber-400 hover:bg-amber-300 rounded-lg transition-colors whitespace-nowrap shrink-0 font-bold"
             >
               <ShoppingCart className="w-3.5 h-3.5" />
-              <span>POS Cart</span>
+              <span>Cart</span>
               <span className="font-mono-numbers bg-stone-900 text-amber-300 text-[11px] px-1.5 py-0.2 rounded font-bold">
                 {cartItemCount}
               </span>
+            </button>
+
+            {/* Explicit Log Out button for staff */}
+            <button
+              onClick={() => {
+                if (window.confirm('Sigurado ka bang nais mong mag-Log Out?')) {
+                  logout();
+                }
+              }}
+              className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-rose-300 bg-rose-950/60 hover:bg-rose-900/80 border border-rose-800/60 rounded-lg transition-colors whitespace-nowrap shrink-0 shadow-xs"
+              title="Mag-Log Out"
+            >
+              <LogOut className="w-3.5 h-3.5" />
+              <span className="hidden sm:inline">Log Out</span>
             </button>
           </div>
         </div>

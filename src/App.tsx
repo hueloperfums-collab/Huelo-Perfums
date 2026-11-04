@@ -22,7 +22,8 @@ function MainApp() {
   // If active user is purely a customer user, show User Portal directly
   const isPureCustomer = currentUser.role === 'user';
 
-  if (isPureCustomer && activeTab !== 'settings') {
+  // Requirement 2: Strict separation of the Customer / User Portal from Staff Backoffice
+  if (isPureCustomer) {
     return (
       <div className="min-h-screen bg-stone-50 flex flex-col text-stone-900 font-sans selection:bg-amber-200">
         <UserPortal />

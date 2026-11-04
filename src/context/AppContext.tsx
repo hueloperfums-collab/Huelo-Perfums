@@ -64,6 +64,9 @@ interface AppContextType {
   users: AppUser[];
   switchUser: (userId: string) => void;
   firebaseUser: any | null;
+  isLoggedIn: boolean;
+  login: () => Promise<void>;
+  logout: () => Promise<void>;
   loginGoogle: () => Promise<void>;
   logoutGoogle: () => Promise<void>;
   isFirestoreSyncing: boolean;
@@ -164,26 +167,43 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         // Find existing user in state
         const found = users.find(u => u.email.toLowerCase() === emailLower);
         if (found) {
-          if (isAdminEmail && (found.role !== 'admin' || found.status !== 'active')) {
-            const updated: AppUser = {
-              ...found,
-              role: 'admin',
-              status: 'active',
-              lastLoginAt: new Date().toISOString()
-            };
-            await safeSetDoc(doc(db, 'users', found.id), updated);
+          if (isAdminEmail) {
+            if (found.role !== 'admin' || found.status !== 'active') {
+              const updated: AppUser = {
+                ...found,
+                role: 'admin',
+                status: 'active',
+                lastLoginAt: new Date().toISOString()
+              };
+              await safeSetDoc(doc(db, 'users', found.id), updated);
+            }
+          } else {
+            // Non-admin user: make sure status is active
+            if (found.status === 'pending_approval') {
+              const updated: AppUser = {
+                ...found,
+                status: 'active',
+                lastLoginAt: new Date().toISOString()
+              };
+              await safeSetDoc(doc(db, 'users', found.id), updated);
+            }
           }
           setCurrentUserId(found.id);
+          // If customer user, automatically keep on portal
+          if (found.role === 'user') {
+            setActiveTab('portal');
+          }
         } else {
           // Register new user doc in Firestore
+          // Requirement: "once mag sign in ang user automatic user ang kanyang role"
           const cleanUid = user.uid.replace(/[^a-zA-Z0-9_-]/g, '').slice(0, 20) || `${Date.now()}`;
           const newUserId = `usr-${cleanUid}`;
           const newUser: AppUser = {
             id: newUserId,
             name: user.displayName || user.email.split('@')[0],
             email: user.email,
-            role: isAdminEmail ? 'admin' : 'user',
-            status: isAdminEmail ? 'active' : 'pending_approval',
+            role: isAdminEmail ? 'admin' : 'user', // Automatic user role!
+            status: 'active', // Automatic active status!
             photoURL: user.photoURL || undefined,
             createdAt: new Date().toISOString(),
             lastLoginAt: new Date().toISOString()
@@ -192,15 +212,15 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           await safeSetDoc(doc(db, 'users', newUserId), newUser);
           setCurrentUserId(newUserId);
           
-          // Notify admin and manager of pending user
           if (!isAdminEmail) {
+            setActiveTab('portal');
             const alertLog: AuditLog = {
               id: `log-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
               timestamp: new Date().toISOString(),
               user: newUser.name,
-              action: 'New User Registered',
-              details: `User ${user.email} (${newUser.name}) signed in via Google. Pending Admin/Manager approval in Settings.`,
-              severity: 'alert'
+              action: 'Customer Logged In',
+              details: `User ${user.email} (${newUser.name}) logged in. Assigned role: USER (customer).`,
+              severity: 'info'
             };
             await safeSetDoc(doc(db, 'auditLogs', alertLog.id), alertLog);
           }
@@ -210,25 +230,52 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     return () => unsub();
   }, [users]);
 
-  const loginGoogle = async () => {
+  const login = async () => {
     try {
       await signInWithGoogle();
     } catch (err) {
-      console.error('Google Sign-in failed:', err);
+      console.error('Login failed:', err);
     }
   };
+  const loginGoogle = login;
 
-  const logoutGoogle = async () => {
+  const logout = async () => {
     try {
       await signOutUser();
-      // Reset back to initial default demo admin or cashier
-      setCurrentUserId('usr-1');
     } catch (err) {
       console.error('Sign-out failed:', err);
+    } finally {
+      setFirebaseUser(null);
+      setCurrentUserId('');
+      setActiveTab('portal');
     }
   };
+  const logoutGoogle = logout;
 
-  const currentUser: AppUser = users.find(u => u.id === currentUserId) || users[0] || initialUsers[0];
+  const guestUser: AppUser = {
+    id: 'guest',
+    name: 'Guest Customer',
+    role: 'user',
+    email: '',
+    status: 'active',
+    createdAt: '2026-01-01T00:00:00Z'
+  };
+
+  const currentUser: AppUser = 
+    (currentUserId ? users.find(u => u.id === currentUserId) : null) || 
+    (firebaseUser ? {
+      id: `usr-${firebaseUser.uid.replace(/[^a-zA-Z0-9_-]/g, '').slice(0, 20)}`,
+      name: firebaseUser.displayName || firebaseUser.email?.split('@')[0] || 'User',
+      role: firebaseUser.email?.toLowerCase() === 'hueloperfums@gmail.com' ? 'admin' : 'user',
+      email: firebaseUser.email || '',
+      status: 'active',
+      createdAt: new Date().toISOString()
+    } : null) || 
+    guestUser;
+
+  const isLoggedIn: boolean = Boolean(
+    firebaseUser || (currentUserId && currentUserId !== '' && currentUserId !== 'guest')
+  );
 
   const switchUser = (userId: string) => {
     setCurrentUserId(userId);
@@ -1167,6 +1214,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         users,
         switchUser,
         firebaseUser,
+        isLoggedIn,
+        login,
+        logout,
         loginGoogle,
         logoutGoogle,
         isFirestoreSyncing,

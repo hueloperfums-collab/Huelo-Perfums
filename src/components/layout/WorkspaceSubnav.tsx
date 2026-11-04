@@ -15,7 +15,9 @@ import {
   Download,
   Database,
   Settings,
-  Store
+  Store,
+  LogIn,
+  LogOut
 } from 'lucide-react';
 
 export const WorkspaceSubnav: React.FC<{ onOpenShiftModal: () => void }> = ({ onOpenShiftModal }) => {
@@ -90,19 +92,22 @@ export const WorkspaceSubnav: React.FC<{ onOpenShiftModal: () => void }> = ({ on
           {firebaseUser ? (
             <button
               onClick={logoutGoogle}
-              className="hidden sm:flex items-center gap-1 px-2 py-1 text-xs text-stone-700 bg-stone-200 hover:bg-stone-300 rounded transition-colors"
-              title={`Signed in as ${firebaseUser.email}`}
+              className="hidden sm:flex items-center gap-1.5 px-2.5 py-1 text-xs text-stone-700 bg-stone-200 hover:bg-stone-300 rounded transition-colors"
+              title={`Logged in as ${firebaseUser.email}`}
             >
+              <LogOut className="w-3 h-3 text-stone-500" />
               <span>{firebaseUser.email?.split('@')[0]}</span>
               <span className="text-stone-400">·</span>
-              <span className="text-[10px] text-stone-500">Sign Out</span>
+              <span className="text-[10px] text-stone-600 font-semibold">Log Out</span>
             </button>
           ) : (
             <button
               onClick={loginGoogle}
-              className="hidden sm:flex items-center gap-1 px-2 py-1 text-xs text-amber-900 bg-amber-100 hover:bg-amber-200 rounded font-medium transition-colors"
+              className="hidden sm:flex items-center gap-1 px-2.5 py-1 text-xs text-amber-900 bg-amber-200 hover:bg-amber-300 rounded font-semibold transition-colors"
+              title="Mag-Log In gamit ang iyong account"
             >
-              <span>Google Sign-In</span>
+              <LogIn className="w-3.5 h-3.5" />
+              <span>Log In</span>
             </button>
           )}
           <button
