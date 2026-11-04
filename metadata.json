@@ -1,0 +1,6 @@
+{
+  "name": "Aura Fragrances POS & Inventory",
+  "description": "Comprehensive Perfume Business Point of Sale (POS) and Inventory Management System with fast checkout, variant stock tracking, costing, expenses, GCash/Cash reconciliation, and profit analytics.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
