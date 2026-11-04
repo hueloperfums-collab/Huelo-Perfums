@@ -1040,32 +1040,6 @@ export const UserPortal: React.FC<{
                   </svg>
                   <span>Log In gamit ang Gmail</span>
                 </button>
-                <div className="bg-stone-50 border border-stone-200 rounded-lg p-2 text-center text-[11px] text-stone-500">
-                  <span className="font-semibold text-stone-700">Awtomatikong User Role:</span> Lahat ng bagong log in ay agad na magiging aktibong customer. Ang <span className="font-mono text-stone-700">hueloperfums@gmail.com</span> ay mananatiling Administrator.
-                </div>
-              </div>
-
-              {/* Staff Demo Quick Access (For Evaluation & Testing) */}
-              <div className="pt-4 border-t border-stone-200">
-                <span className="text-[11px] font-bold uppercase tracking-wider text-stone-400 block mb-2 text-center">
-                  O pumili ng Demo Staff Account (Testing)
-                </span>
-                <div className="grid grid-cols-3 gap-2">
-                  {users.filter(u => u.role !== 'user').slice(0, 3).map(u => (
-                    <button
-                      key={u.id}
-                      type="button"
-                      onClick={() => {
-                        switchUser(u.id);
-                        setIsLoginModalOpen(false);
-                      }}
-                      className="p-2 rounded-lg border border-stone-200 hover:border-amber-400 hover:bg-amber-50/50 text-left transition-colors"
-                    >
-                      <div className="text-[11px] font-bold text-stone-800 truncate">{u.name.split(' ')[0]}</div>
-                      <div className="text-[10px] uppercase font-mono text-amber-700 font-bold">{u.role}</div>
-                    </button>
-                  ))}
-                </div>
               </div>
             </div>
 
@@ -1075,7 +1049,7 @@ export const UserPortal: React.FC<{
                 onClick={() => setIsLoginModalOpen(false)}
                 className="text-xs text-stone-500 hover:text-stone-800 font-medium"
               >
-                Isara / Magpatuloy bilang Guest
+                Isara
               </button>
             </div>
           </div>

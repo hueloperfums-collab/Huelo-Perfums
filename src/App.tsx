@@ -6,33 +6,34 @@ import { LandingPage } from './components/landing/LandingPage';
 import { RegisterShiftModal } from './components/shift/RegisterShiftModal';
 
 function MainApp() {
-  const { currentUser, isLoggedIn } = useApp();
+  const { currentUser, isLoggedIn, isAuthChecking } = useApp();
   const [isShiftModalOpen, setIsShiftModalOpen] = useState<boolean>(false);
   const [activePortal, setActivePortal] = useState<'admin' | 'user'>('admin');
-  const [showGuestStore, setShowGuestStore] = useState<boolean>(false);
 
-  // 1. If user is not logged in:
-  if (!isLoggedIn) {
-    if (showGuestStore) {
-      return (
-        <div className="min-h-screen bg-stone-50 flex flex-col text-stone-900 font-sans selection:bg-amber-200">
-          <UserPortal 
-            onBackToLanding={() => setShowGuestStore(false)} 
-            onSwitchToAdmin={() => setActivePortal('admin')}
-          />
-        </div>
-      );
-    }
+  // Loading state habang sinusuri kung may aktibong account sa Firebase
+  if (isAuthChecking) {
     return (
-      <LandingPage 
-        onBrowseStore={() => setShowGuestStore(true)} 
-        onOpenAdminPortal={() => setActivePortal('admin')}
-      />
+      <div className="min-h-screen bg-stone-950 flex flex-col items-center justify-center text-amber-200">
+        <div className="w-14 h-14 rounded-2xl bg-amber-400/10 border border-amber-400/30 flex items-center justify-center font-serif-luxury font-bold text-2xl text-amber-300 animate-pulse shadow-xl">
+          HP
+        </div>
+        <div className="mt-4 font-serif-luxury tracking-widest text-sm text-stone-300 uppercase">
+          HUELO PERFUMES
+        </div>
+      </div>
     );
   }
 
-  // 2. If logged in as regular customer / user:
-  // Strictly isolated to the dedicated User Portal (cannot access Admin Portal)
+  // 1. Kapag binuksan ang link at WALA PANG ACCOUNT / hindi pa naka-login:
+  // Mapupunta muna ang user sa registration page
+  if (!isLoggedIn) {
+    return <LandingPage />;
+  }
+
+  // 2. NGUNIT KUNG MAY ACCOUNT NA SA SYSTEM (naka-login):
+  // Direktang mapupunta ang user sa kanyang sariling portal!
+  
+  // A. Kung Customer / User ang role -> DIREKTA SA USER PORTAL
   const isCustomer = currentUser.role === 'user';
   if (isCustomer) {
     return (
@@ -42,7 +43,8 @@ function MainApp() {
     );
   }
 
-  // 3. If staff or admin and currently previewing the User Portal:
+  // B. Kung Admin / Staff ang role (e.g. hueloperfums@gmail.com):
+  // May kakayahan si Admin na mag-preview sa User Portal kung nais
   if (activePortal === 'user') {
     return (
       <div className="min-h-screen bg-stone-50 flex flex-col text-stone-900 font-sans selection:bg-amber-200">
@@ -51,7 +53,7 @@ function MainApp() {
     );
   }
 
-  // 4. Dedicated Admin Portal (Unified, professional layout with zero duplicate navigation bars)
+  // DIREKTA SA ADMIN PORTAL para kay Admin / Staff
   return (
     <>
       <AdminPortal 
@@ -59,7 +61,7 @@ function MainApp() {
         onOpenShiftModal={() => setIsShiftModalOpen(true)}
       />
 
-      {/* Register Shift Modal */}
+      {/* Register Shift Drawer Modal */}
       {isShiftModalOpen && (
         <RegisterShiftModal onClose={() => setIsShiftModalOpen(false)} />
       )}

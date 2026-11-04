@@ -130,20 +130,19 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
                 </span>
               </button>
 
-              {/* Staff User Switcher */}
-              <div className="relative inline-block text-xs">
-                <select
-                  aria-label="Active staff user role"
-                  value={currentUser.id}
-                  onChange={(e) => switchUser(e.target.value)}
-                  className="bg-stone-800 border border-stone-700 text-stone-200 text-xs rounded-lg px-2.5 py-1.5 focus:outline-none focus:ring-1 focus:ring-amber-400 font-medium"
-                >
-                  {users.map(u => (
-                    <option key={u.id} value={u.id}>
-                      {u.name} ({u.role.toUpperCase()})
-                    </option>
-                  ))}
-                </select>
+              {/* Authenticated Staff User Profile Badge */}
+              <div className="flex items-center gap-2 bg-stone-800/90 px-2.5 py-1.5 rounded-lg border border-stone-700">
+                <div className="w-5 h-5 rounded-full bg-amber-400 text-stone-900 flex items-center justify-center font-bold text-[10px]">
+                  {currentUser.name?.charAt(0).toUpperCase() || 'A'}
+                </div>
+                <div className="flex flex-col text-left text-[11px] leading-tight">
+                  <span className="text-stone-200 font-semibold truncate max-w-[120px]">
+                    {currentUser.name}
+                  </span>
+                  <span className="text-amber-400 text-[9px] uppercase font-mono font-bold">
+                    {currentUser.role}
+                  </span>
+                </div>
               </div>
 
               {/* Explicit Log Out button */}

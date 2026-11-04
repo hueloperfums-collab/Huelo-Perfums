@@ -65,6 +65,7 @@ interface AppContextType {
   switchUser: (userId: string) => void;
   firebaseUser: any | null;
   isLoggedIn: boolean;
+  isAuthChecking: boolean;
   login: () => Promise<void>;
   logout: () => Promise<void>;
   loginGoogle: () => Promise<void>;
@@ -150,7 +151,8 @@ const AppContext = createContext<AppContextType | undefined>(undefined);
 export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [activeTab, setActiveTab] = useState<string>('pos');
   const [users, setUsers] = useState<AppUser[]>(initialUsers);
-  const [currentUserId, setCurrentUserId] = useState<string>('usr-1'); // Default Althea Ramos (Super Admin / hueloperfums@gmail.com)
+  const [currentUserId, setCurrentUserId] = useState<string>(''); // Empty by default until auth resolved
+  const [isAuthChecking, setIsAuthChecking] = useState<boolean>(true);
   const [orders, setOrders] = useState<OnlineOrder[]>([]);
   const [storeSettings, setStoreSettings] = useState<StoreSettings>(defaultStoreSettings);
   const [isFirestoreSyncing, setIsFirestoreSyncing] = useState<boolean>(true);
@@ -225,7 +227,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             await safeSetDoc(doc(db, 'auditLogs', alertLog.id), alertLog);
           }
         }
+      } else {
+        // No authenticated Firebase user
+        setCurrentUserId('');
       }
+      setIsAuthChecking(false);
     });
     return () => unsub();
   }, [users]);
@@ -1215,6 +1221,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         switchUser,
         firebaseUser,
         isLoggedIn,
+        isAuthChecking,
         login,
         logout,
         loginGoogle,

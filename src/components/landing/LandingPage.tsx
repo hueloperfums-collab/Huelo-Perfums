@@ -2,26 +2,15 @@ import React, { useState } from 'react';
 import { useApp } from '../../context/AppContext';
 import { 
   Sparkles, 
-  ShieldCheck, 
   Truck, 
   CreditCard, 
-  Clock, 
   ArrowRight, 
-  Star, 
-  Check, 
-  ChevronRight,
-  Store,
-  Lock,
-  ExternalLink
+  Check 
 } from 'lucide-react';
 
-export const LandingPage: React.FC<{ 
-  onBrowseStore: () => void; 
-  onOpenAdminPortal?: () => void; 
-}> = ({ onBrowseStore, onOpenAdminPortal }) => {
-  const { login, users, switchUser, storeSettings, products } = useApp();
+export const LandingPage: React.FC = () => {
+  const { login, storeSettings, products } = useApp();
   const [isRegistering, setIsRegistering] = useState(false);
-  const [isStaffModalOpen, setIsStaffModalOpen] = useState(false);
 
   const handleRegisterWithGmail = async () => {
     setIsRegistering(true);
@@ -64,20 +53,12 @@ export const LandingPage: React.FC<{
             <a href="#register" className="hover:text-amber-300 transition-colors">Register</a>
           </nav>
 
-          {/* Auth Actions */}
+          {/* Direct Registration / Log In CTA */}
           <div className="flex items-center gap-3">
-            <button
-              onClick={onBrowseStore}
-              className="hidden sm:flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-xs font-medium text-stone-300 hover:text-white hover:bg-stone-800/80 transition-colors"
-            >
-              <Store className="w-3.5 h-3.5 text-amber-400" />
-              <span>Browse as Guest</span>
-            </button>
-
             <button
               onClick={handleRegisterWithGmail}
               disabled={isRegistering}
-              className="flex items-center gap-2 px-4 py-2.5 bg-amber-400 hover:bg-amber-300 text-stone-950 font-bold text-xs uppercase tracking-wider rounded-xl transition-all shadow-lg shadow-amber-400/10 hover:shadow-amber-400/20 active:scale-[0.98] disabled:opacity-50"
+              className="flex items-center gap-2 px-5 py-2.5 bg-amber-400 hover:bg-amber-300 text-stone-950 font-bold text-xs uppercase tracking-wider rounded-xl transition-all shadow-lg shadow-amber-400/10 hover:shadow-amber-400/20 active:scale-[0.98] disabled:opacity-50"
             >
               <svg className="w-4 h-4" viewBox="0 0 24 24">
                 <path fill="#EA4335" d="M12 5c1.6 0 3 .6 4.1 1.6l3.1-3.1C17.3 1.8 14.8 1 12 1 7.4 1 3.5 3.6 1.6 7.4l3.7 2.9C6.2 7.4 8.9 5 12 5z"/>
@@ -85,14 +66,14 @@ export const LandingPage: React.FC<{
                 <path fill="#FBBC05" d="M5.3 14.7c-.2-.7-.4-1.5-.4-2.3s.2-1.6.4-2.3L1.6 7.2C.6 9.2 0 11.5 0 14s.6 4.8 1.6 6.8l3.7-6.1z"/>
                 <path fill="#34A853" d="M12 23c3.2 0 6-1.1 8-3l-3.7-2.9c-1.1.7-2.5 1.2-4.3 1.2-3.1 0-5.8-2.4-6.7-5.5L1.6 15.7C3.5 19.5 7.4 23 12 23z"/>
               </svg>
-              <span>{isRegistering ? 'Registering...' : 'Register / Log In'}</span>
+              <span>{isRegistering ? 'Nagrerehistro...' : 'Mag-register / Mag-Log In'}</span>
             </button>
           </div>
         </div>
       </header>
 
       {/* HERO SECTION WITH GMAIL REGISTRATION CARD */}
-      <section className="relative overflow-hidden pt-12 pb-24 md:pt-20 md:pb-32 border-b border-stone-800">
+      <section className="relative overflow-hidden pt-12 pb-24 md:pt-20 md:pb-32 border-b border-stone-800" id="about">
         {/* Ambient Glow */}
         <div className="absolute top-1/4 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] bg-amber-500/10 rounded-full blur-[140px] pointer-events-none" />
 
@@ -138,7 +119,7 @@ export const LandingPage: React.FC<{
                   Instant Registration
                 </div>
 
-                <div className="space-y-4 text-center">
+                <div className="space-y-5 text-center">
                   <div className="w-14 h-14 rounded-2xl bg-amber-400/10 border border-amber-400/30 text-amber-300 flex items-center justify-center mx-auto text-xl font-bold font-serif-luxury shadow-inner">
                     HP
                   </div>
@@ -148,7 +129,7 @@ export const LandingPage: React.FC<{
                       Mag-Register sa HUELO
                     </h2>
                     <p className="text-xs text-stone-400 mt-1.5 leading-relaxed">
-                      Isang click lang gamit ang iyong Gmail. Awtomatikong magkakaroon ng <strong>User (Customer)</strong> access para makapag-order at ma-track ang paborito mong mga pabango.
+                      Isang click lang gamit ang iyong Gmail. Awtomatikong magkakaroon ng access sa iyong Customer Portal para makapamili at ma-track ang paborito mong mga pabango.
                     </p>
                   </div>
 
@@ -171,7 +152,7 @@ export const LandingPage: React.FC<{
                   </div>
 
                   {/* Bullet Benefits */}
-                  <div className="space-y-2 pt-3 text-left border-t border-stone-800 text-xs text-stone-300">
+                  <div className="space-y-2.5 pt-4 text-left border-t border-stone-800 text-xs text-stone-300">
                     <div className="flex items-center gap-2">
                       <Check className="w-4 h-4 text-emerald-400 shrink-0" />
                       <span>Walang mahabang registration form o passwords na kakalimutan</span>
@@ -182,31 +163,8 @@ export const LandingPage: React.FC<{
                     </div>
                     <div className="flex items-center gap-2">
                       <Check className="w-4 h-4 text-emerald-400 shrink-0" />
-                      <span>Direktang GCash verification kay <strong>{storeSettings.gcashAccountName || 'HUELO PERFUMES'}</strong></span>
+                      <span>Direktang GCash verification kay <strong>{storeSettings.gcashAccountName || 'HUELO PERFUMES OFFICIAL'}</strong></span>
                     </div>
-                  </div>
-
-                  {/* Guest Fallback */}
-                  <div className="pt-2">
-                    <button
-                      type="button"
-                      onClick={onBrowseStore}
-                      className="text-xs text-stone-400 hover:text-amber-300 font-medium transition-colors"
-                    >
-                      Nais mo munang tumingin? Sumilip sa Katalogo bilang Guest →
-                    </button>
-                  </div>
-
-                  {/* Staff link */}
-                  <div className="text-[11px] text-stone-500 pt-2 border-t border-stone-800/80">
-                    <span>Para sa Staff at Pamunuan: </span>
-                    <button
-                      type="button"
-                      onClick={() => setIsStaffModalOpen(true)}
-                      className="text-amber-400 hover:underline"
-                    >
-                      Staff Access / Login
-                    </button>
                   </div>
                 </div>
               </div>
@@ -229,10 +187,10 @@ export const LandingPage: React.FC<{
               </h2>
             </div>
             <button
-              onClick={onBrowseStore}
+              onClick={handleRegisterWithGmail}
               className="inline-flex items-center gap-2 text-xs uppercase font-bold tracking-wider text-amber-300 hover:text-amber-200 transition-colors"
             >
-              <span>Tingnan ang Lahat ng Pabango ({products.length})</span>
+              <span>Mag-register para makita ang kumpletong koleksyon ({products.length})</span>
               <ArrowRight className="w-4 h-4" />
             </button>
           </div>
@@ -278,10 +236,10 @@ export const LandingPage: React.FC<{
                       </div>
 
                       <button
-                        onClick={onBrowseStore}
-                        className="px-3 py-1.5 bg-stone-800 hover:bg-amber-400 hover:text-stone-950 text-stone-200 text-xs font-semibold rounded-lg transition-colors"
+                        onClick={handleRegisterWithGmail}
+                        className="px-3.5 py-1.5 bg-amber-400/20 hover:bg-amber-400 text-amber-300 hover:text-stone-950 text-xs font-bold rounded-lg transition-colors"
                       >
-                        Piliin ang Size
+                        Mag-register
                       </button>
                     </div>
                   </div>
@@ -362,11 +320,11 @@ export const LandingPage: React.FC<{
             Sumali sa pamilya ng HUELO PERFUMES. Mag-sign up sa loob lamang ng 5 segundo at simulan ang pag-explore sa aming mga de-kalidad na pabango.
           </p>
 
-          <div className="flex flex-col sm:flex-row items-center justify-center gap-4 pt-4">
+          <div className="flex items-center justify-center pt-4">
             <button
               onClick={handleRegisterWithGmail}
               disabled={isRegistering}
-              className="w-full sm:w-auto px-8 py-4 bg-amber-400 hover:bg-amber-300 text-stone-950 font-bold text-sm uppercase tracking-wider rounded-xl shadow-xl transition-all hover:scale-105 active:scale-95 disabled:opacity-50 flex items-center justify-center gap-3"
+              className="w-full sm:w-auto px-10 py-4 bg-amber-400 hover:bg-amber-300 text-stone-950 font-bold text-sm uppercase tracking-wider rounded-xl shadow-xl transition-all hover:scale-105 active:scale-95 disabled:opacity-50 flex items-center justify-center gap-3"
             >
               <svg className="w-5 h-5" viewBox="0 0 24 24">
                 <path fill="#EA4335" d="M12 5c1.6 0 3 .6 4.1 1.6l3.1-3.1C17.3 1.8 14.8 1 12 1 7.4 1 3.5 3.6 1.6 7.4l3.7 2.9C6.2 7.4 8.9 5 12 5z"/>
@@ -376,88 +334,24 @@ export const LandingPage: React.FC<{
               </svg>
               <span>{isRegistering ? 'Nagrerehistro...' : 'Mag-register gamit ang Gmail'}</span>
             </button>
-
-            <button
-              onClick={onBrowseStore}
-              className="w-full sm:w-auto px-6 py-4 bg-stone-800 hover:bg-stone-700 text-stone-200 font-semibold text-sm rounded-xl border border-stone-700 transition-colors"
-            >
-              Pumunta sa Boutique bilang Guest
-            </button>
           </div>
         </div>
       </section>
 
       {/* QUIET FOOTER */}
       <footer className="bg-stone-950 border-t border-stone-900 py-10 text-xs text-stone-500">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-col md:flex-row items-center justify-between gap-4">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-col sm:flex-row items-center justify-between gap-4">
           <div className="flex items-center gap-3">
             <span className="font-serif-luxury font-bold text-stone-300">HUELO PERFUMES</span>
             <span>·</span>
             <span>Handcrafted Extrait de Parfum Manila</span>
           </div>
 
-          <div className="flex items-center gap-6">
-            <button
-              onClick={() => setIsStaffModalOpen(true)}
-              className="hover:text-amber-400 transition-colors"
-            >
-              Staff Portal
-            </button>
-            <span className="text-stone-700">·</span>
+          <div>
             <span>GCash: {storeSettings.gcashNumber}</span>
           </div>
         </div>
       </footer>
-
-      {/* STAFF / DEMO LOGIN MODAL */}
-      {isStaffModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-xs">
-          <div className="bg-stone-900 border border-stone-800 rounded-2xl max-w-sm w-full p-6 space-y-5 shadow-2xl">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <Lock className="w-5 h-5 text-amber-400" />
-                <h3 className="font-serif-luxury font-bold text-base text-stone-100">Staff &amp; Admin Access</h3>
-              </div>
-              <button onClick={() => setIsStaffModalOpen(false)} className="text-stone-400 hover:text-white">✕</button>
-            </div>
-
-            <p className="text-xs text-stone-400">
-              Pumili ng staff account para ma-access ang POS Terminal, Inventory, at System Settings:
-            </p>
-
-            <div className="space-y-2">
-              {users.filter(u => u.role !== 'user').map(u => (
-                <button
-                  key={u.id}
-                  onClick={() => {
-                    switchUser(u.id);
-                    setIsStaffModalOpen(false);
-                    if (onOpenAdminPortal) onOpenAdminPortal();
-                  }}
-                  className="w-full p-3 rounded-xl bg-stone-800/80 hover:bg-stone-700 border border-stone-700/80 text-left flex items-center justify-between transition-colors group"
-                >
-                  <div>
-                    <div className="text-xs font-bold text-stone-100 group-hover:text-amber-200">{u.name}</div>
-                    <div className="text-[10px] text-stone-400">{u.email}</div>
-                  </div>
-                  <span className="text-[10px] uppercase font-mono px-2 py-0.5 rounded bg-amber-400/10 text-amber-300 font-bold">
-                    {u.role}
-                  </span>
-                </button>
-              ))}
-            </div>
-
-            <div className="pt-2 text-center">
-              <button
-                onClick={() => setIsStaffModalOpen(false)}
-                className="text-xs text-stone-400 hover:text-stone-200"
-              >
-                Kanselahin
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 };
