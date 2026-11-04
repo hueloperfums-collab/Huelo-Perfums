@@ -26,7 +26,10 @@ import {
   User as UserIcon
 } from 'lucide-react';
 
-export const UserPortal: React.FC = () => {
+export const UserPortal: React.FC<{ 
+  onBackToLanding?: () => void; 
+  onSwitchToAdmin?: () => void; 
+}> = ({ onBackToLanding, onSwitchToAdmin }) => {
   const { 
     products, 
     currentUser, 
@@ -246,6 +249,15 @@ export const UserPortal: React.FC = () => {
       <div className="bg-stone-900 text-stone-100 border-b border-stone-800">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-3 flex flex-wrap items-center justify-between gap-4">
           <div className="flex items-center gap-3">
+            {onBackToLanding && (
+              <button
+                onClick={onBackToLanding}
+                className="flex items-center gap-1 px-2.5 py-1 rounded bg-stone-800 hover:bg-stone-700 text-amber-300 hover:text-amber-200 text-xs font-semibold transition-colors"
+                title="Bumalik sa Landing Page"
+              >
+                <span>← Home</span>
+              </button>
+            )}
             <span className="font-serif-luxury tracking-widest text-lg font-bold text-amber-200">
               HUELO PERFUMES
             </span>
@@ -259,12 +271,12 @@ export const UserPortal: React.FC = () => {
             {/* If staff user, allow return to POS */}
             {(currentUser.role === 'admin' || currentUser.role === 'manager' || currentUser.role === 'cashier') && (
               <button
-                onClick={() => setActiveTab('pos')}
-                className="flex items-center gap-1.5 px-3 py-1.5 bg-stone-800 hover:bg-stone-700 text-amber-300 rounded-lg font-medium border border-stone-700 transition-colors"
-                title="Return to Staff Backoffice"
+                onClick={() => onSwitchToAdmin ? onSwitchToAdmin() : setActiveTab('pos')}
+                className="flex items-center gap-1.5 px-3 py-1.5 bg-amber-400 text-stone-950 hover:bg-amber-300 rounded-lg font-bold shadow-xs transition-colors"
+                title="Pumunta sa Admin Portal"
               >
-                <Store className="w-3.5 h-3.5" />
-                <span>Switch to Staff POS</span>
+                <ShieldCheck className="w-3.5 h-3.5" />
+                <span>Admin Portal</span>
               </button>
             )}
 
