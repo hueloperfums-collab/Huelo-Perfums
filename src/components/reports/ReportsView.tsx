@@ -115,7 +115,7 @@ export const ReportsView: React.FC = () => {
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.href = url;
-    link.setAttribute('download', `Aura_Perfumes_Sales_Report_${new Date().toISOString().slice(0, 10)}.csv`);
+    link.setAttribute('download', `Huelo_Perfumes_Sales_Report_${new Date().toISOString().slice(0, 10)}.csv`);
     link.click();
     URL.revokeObjectURL(url);
   };

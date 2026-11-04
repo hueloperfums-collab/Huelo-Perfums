@@ -768,7 +768,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `Aura_Perfume_Firestore_Backup_${new Date().toISOString().slice(0, 10)}.json`;
+    a.download = `Huelo_Perfumes_Firestore_Backup_${new Date().toISOString().slice(0, 10)}.json`;
     a.click();
     URL.revokeObjectURL(url);
     addAuditLog('Data Backup', 'Exported complete database JSON archive', 'info');

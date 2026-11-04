@@ -15,7 +15,7 @@ export const Navbar: React.FC<{ onOpenShiftModal: () => void }> = ({ onOpenShift
             onClick={() => setActiveTab('dashboard')} 
             className="text-xl font-serif-luxury tracking-wide font-semibold text-amber-100 hover:text-white transition-colors whitespace-nowrap shrink-0 text-left"
           >
-            AURA FRAGRANCES
+            HUELO PERFUMES
           </button>
 
           {/* Zone 2: 4-5 concise single-line nav links */}

@@ -17,7 +17,7 @@ export const ThermalReceipt: React.FC<ThermalReceiptProps> = ({ sale, onClose })
 
   const handleCopySummary = () => {
     const text = `
-AURA FRAGRANCES BOUTIQUE
+HUELO PERFUMES
 Invoice: ${sale.invoiceNumber}
 Date: ${new Date(sale.timestamp).toLocaleString()}
 Cashier: ${sale.cashierName}
@@ -28,7 +28,7 @@ Subtotal: ₱${sale.subtotal.toFixed(2)}
 Discount: -₱${sale.discountAmount.toFixed(2)}
 TOTAL: ₱${sale.total.toFixed(2)}
 Payment: ${sale.paymentMethod.toUpperCase()}
-Thank you for shopping at Aura Fragrances!
+Thank you for shopping at Huelo Perfumes!
 `.trim();
 
     navigator.clipboard.writeText(text);
@@ -85,14 +85,14 @@ Thank you for shopping at Aura Fragrances!
             {/* Store Header */}
             <div className="text-center space-y-1 pb-3 border-b border-dashed border-stone-400">
               <div className="text-sm font-bold tracking-wider font-serif-luxury uppercase">
-                AURA FRAGRANCES
+                HUELO PERFUMES
               </div>
               <div className="text-[10px] text-stone-600">
                 Luxury &amp; Inspired Artisanal Perfumes
               </div>
               <div className="text-[9px] text-stone-500">
                 Boutique Mall Branch, Metro Manila<br />
-                TIN: 482-901-229-000 | Contact: 0917-884-2190
+                hueloperfums@gmail.com | 0917-884-2190
               </div>
             </div>
 
@@ -236,7 +236,7 @@ Thank you for shopping at Aura Fragrances!
             <div className="pt-3 text-center text-[9px] text-stone-500 space-y-0.5">
               <p className="font-semibold text-stone-800">Thank you for your scent patronage!</p>
               <p>Keep this receipt for returns or exchanges within 7 days.</p>
-              <p>Follow us @AuraFragrances.ph</p>
+              <p>Follow us @HueloPerfumes · hueloperfums@gmail.com</p>
             </div>
           </div>
         </div>

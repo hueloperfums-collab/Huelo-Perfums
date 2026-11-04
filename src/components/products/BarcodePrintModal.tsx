@@ -37,7 +37,7 @@ export const BarcodePrintModal: React.FC<BarcodePrintModalProps> = ({ product, v
                 className="bg-white border-2 border-stone-800 p-3 rounded-md text-center space-y-1 shadow-xs"
               >
                 <div className="text-[9px] uppercase tracking-wider text-stone-500 font-bold">
-                  Aura Fragrances
+                  HUELO PERFUMES
                 </div>
                 <div className="font-bold text-xs text-stone-900 truncate">
                   {product.name}

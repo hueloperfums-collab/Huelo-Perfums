@@ -11,13 +11,14 @@ import {
   ArrowDownToLine, 
   DollarSign, 
   TrendingUp, 
-  Barcode 
+  Barcode,
+  Trash2
 } from 'lucide-react';
 import { StockInModal } from './StockInModal';
 import { StockAdjustModal } from './StockAdjustModal';
 
 export const InventoryManagement: React.FC = () => {
-  const { products, auditLogs } = useApp();
+  const { products, auditLogs, deleteProduct, currentUser } = useApp();
 
   const [search, setSearch] = useState<string>('');
   const [filterLowStockOnly, setFilterLowStockOnly] = useState<boolean>(false);
@@ -255,12 +256,28 @@ export const InventoryManagement: React.FC = () => {
                           ₱{itemCostValue.toLocaleString('en-US', { minimumFractionDigits: 2 })}
                         </td>
                         <td className="py-3 px-4 text-right">
-                          <button
-                            onClick={() => setAdjustTarget({ product, variant })}
-                            className="px-2.5 py-1 bg-stone-100 hover:bg-stone-200 text-stone-800 rounded font-medium text-[11px] transition-colors"
-                          >
-                            Adjust
-                          </button>
+                          <div className="flex items-center justify-end gap-1.5">
+                            <button
+                              onClick={() => setAdjustTarget({ product, variant })}
+                              className="px-2.5 py-1 bg-stone-100 hover:bg-stone-200 text-stone-800 rounded font-medium text-[11px] transition-colors"
+                            >
+                              Adjust
+                            </button>
+                            {currentUser.role === 'admin' && (
+                              <button
+                                onClick={() => {
+                                  if (window.confirm(`Delete perfume "${product.name}" and all its variants from inventory?`)) {
+                                    deleteProduct(product.id);
+                                  }
+                                }}
+                                className="px-2 py-1 bg-rose-50 hover:bg-rose-100 text-rose-700 hover:text-rose-800 rounded font-medium text-[11px] transition-colors flex items-center gap-1"
+                                title="Delete perfume product (Admin)"
+                              >
+                                <Trash2 className="w-3 h-3" />
+                                <span>Delete</span>
+                              </button>
+                            )}
+                          </div>
                         </td>
                       </tr>
                     );

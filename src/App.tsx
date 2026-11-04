@@ -42,7 +42,7 @@ function MainApp() {
       <footer className="bg-stone-900 text-stone-400 border-t border-stone-800 py-6 text-xs no-print">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-col sm:flex-row items-center justify-between gap-4">
           <div className="flex items-center gap-2">
-            <span className="font-serif-luxury font-bold text-stone-200">AURA FRAGRANCES</span>
+            <span className="font-serif-luxury font-bold text-stone-200">HUELO PERFUMES</span>
             <span aria-hidden="true">·</span>
             <span>Perfume Point of Sale &amp; Inventory Management System</span>
           </div>

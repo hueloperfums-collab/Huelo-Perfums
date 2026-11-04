@@ -78,7 +78,7 @@ export const Dashboard: React.FC<{ onOpenStockIn?: () => void }> = ({ onOpenStoc
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-white p-6 rounded-2xl border border-stone-200 shadow-xs">
         <div>
           <div className="text-xs uppercase tracking-wider font-semibold text-amber-700">
-            Aura Perfumes Point of Sale
+            HUELO PERFUMES Point of Sale
           </div>
           <h1 className="text-2xl font-bold font-serif-luxury text-stone-900 mt-1">
             Store Performance Dashboard
